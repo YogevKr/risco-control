@@ -1,0 +1,14 @@
+version: '3'
+services:
+  risco-control:
+    build: .
+    ports:
+      - "3580:3580"
+    environment:
+      - RISCO_IP=192.168.40.199
+      - RISCO_PORT=1000
+      - RISCO_PASSWORD=5678
+      - RISCO_PANEL_ID=0001
+      - RISCO_PANEL_TYPE=LightSys
+    restart: unless-stopped
+    network_mode: host  # needed to reach panel on LAN

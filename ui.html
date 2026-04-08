@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html><head><title>Risco Control Panel</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0e1a;color:#c8d0e0;font-size:15px;padding:20px;max-width:1400px;margin:0 auto}
+  h1{color:#38bdf8;font-size:24px;margin-bottom:4px}
+  h1 small{color:#475569;font-size:14px;font-weight:400;margin-left:8px}
+  .sec-hdr{color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:1px;padding:14px 0 8px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;border-bottom:1px solid #1e293b}
+  .sec-hdr:hover{color:#94a3b8}
+  .sec-hdr .arr{font-size:10px;transition:transform .2s}
+  .sec-hdr .arr.open{transform:rotate(90deg)}
+  .sec-body{overflow:hidden}.sec-body.closed{display:none}
+  .g3{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;padding:10px 0}
+  .c{background:#131a2b;border-radius:6px;padding:12px 14px;border:1px solid #1e293b}
+  .c.bad{border-color:#dc2626}.c.good{border-color:#16a34a}
+  .name{font-size:16px;font-weight:600;color:#e2e8f0}
+  .dim{color:#64748b;font-size:13px;margin-top:2px}
+  .row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center}
+  .t{display:inline-block;padding:2px 8px;border-radius:3px;font-size:12px;font-weight:600;margin-right:3px}
+  .t-ok{background:#0f3d1f;color:#6ee7a0}.t-warn{background:#422006;color:#fbbf24}
+  .t-err{background:#450a0a;color:#f87171}.t-info{background:#0c2d4d;color:#60a5fa}.t-dim{background:#1e293b;color:#64748b}
+  .bars{display:inline-flex;align-items:flex-end;gap:1px;margin-right:4px;vertical-align:middle}
+  .bar{width:3px;border-radius:1px}.bar.on{background:#22c55e}.bar.off{background:#1e293b}
+  button{padding:5px 12px;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:13px}
+  button:active{opacity:.7}
+  .br{background:#dc2626;color:#fff}.bg{background:#16a34a;color:#fff}.by{background:#ca8a04;color:#fff}
+  .bb{background:#2563eb;color:#fff}.bp{background:#6d28d9;color:#fff}.bgr{background:#475569;color:#fff}
+  select,input[type=text],input[type=number],input[type=password]{background:#1e293b;color:#c8d0e0;border:1px solid #334155;border-radius:4px;padding:5px 8px;font-size:14px}
+  input[type=text]{width:180px}input[type=number]{width:80px}input[type=password]{width:140px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;font-size:14px}
+  .kv .k{color:#475569}.kv .v{color:#c8d0e0}
+  /* Tables */
+  table{width:100%;border-collapse:collapse;margin:6px 0}
+  td{padding:7px 10px;border-bottom:1px solid #1a2236;vertical-align:middle;font-size:14px}
+  tr:hover{background:#131a2b}
+  .tid{color:#64748b;width:32px;text-align:right;font-size:13px}
+  .tname{font-weight:600;color:#e2e8f0;max-width:200px;font-size:15px}
+  .tinfo{color:#64748b;font-size:13px}
+  /* Edit panel */
+  .edit-panel{background:#0f1629;border:1px solid #1e3a5f;border-radius:6px;padding:14px;margin:8px 0}
+  .edit-panel label{display:inline-block;color:#64748b;font-size:13px;width:140px;text-align:right;margin-right:8px}
+  .edit-row{margin:6px 0;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+  .edit-panel .edit-title{color:#38bdf8;font-size:14px;font-weight:600;margin-bottom:10px}
+  .cb{display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:13px;color:#94a3b8}
+  .cb input[type=checkbox]{accent-color:#2563eb}
+  /* Raw */
+  .raw-row{display:flex;gap:6px;padding:8px 0}
+  .raw-row input{flex:1;padding:8px 10px;background:#131a2b;color:#e2e8f0;border:1px solid #1e293b;border-radius:4px;font-family:monospace;font-size:14px}
+  pre{padding:8px;background:#0a0e1a;border:1px solid #1e293b;border-radius:4px;font-size:13px;color:#38bdf8;max-height:150px;overflow:auto;margin-top:4px}
+  .loader{color:#475569;font-size:14px;padding:6px 0}
+  .toast{position:fixed;top:16px;right:16px;background:#16a34a;color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;z-index:999;display:none}
+  .toast.err{background:#dc2626}
+</style></head><body>
+
+<div style="display:flex;justify-content:space-between;align-items:center">
+<h1>Risco LightSYS<small id="clock"></small></h1>
+<button class="bgr" onclick="localStorage.removeItem('risco-server');location.reload()" style="font-size:11px">Disconnect</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<div id="connect" style="display:none">
+  <div class="c" style="max-width:500px;margin:40px auto;text-align:center">
+    <div class="name" style="margin-bottom:12px">Connect to your local Risco server</div>
+    <div class="dim" style="margin-bottom:12px">Run <code style="background:#1e293b;padding:2px 6px;border-radius:3px">npm start</code> on your local machine, then enter the address below</div>
+    <div class="row" style="justify-content:center">
+      <input type="text" id="server-url" placeholder="http://192.168.x.x:3580" style="width:260px;padding:8px;font-size:14px">
+      <button class="bg" onclick="connectServer()" style="padding:8px 20px;font-size:14px">Connect</button>
+    </div>
+    <div id="connect-err" style="color:#f87171;margin-top:8px;font-size:12px"></div>
+  </div>
+</div>
+
+<div id="sys"></div>
+<div id="parts"></div>
+<div id="zones"></div>
+<div id="outs"></div>
+<div id="users"></div>
+<div id="keypads"></div>
+<div id="keyfobs"></div>
+<div id="sirens"></div>
+<div id="followme"></div>
+<div id="monitoring"></div>
+<div id="cloud"></div>
+<div id="gsm-sec"></div>
+<div id="network"></div>
+<div id="arming"></div>
+<div id="schedules"></div>
+<div id="vacations"></div>
+<div id="events"></div>
+<div id="firmware"></div>
+<div id="actions"></div>
+<div id="raw"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+
+// Server URL: auto-detect if served locally, otherwise ask user
+let BASE = '';
+function getBase() {
+  // If served from the local server itself, use relative URLs
+  if (location.port === '3580' || location.hostname === 'localhost') return '';
+  // Check localStorage for saved server URL
+  const saved = localStorage.getItem('risco-server');
+  if (saved) return saved;
+  return null;
+}
+
+async function connectServer() {
+  let url = $('#server-url').value.trim().replace(/\/+$/, '');
+  if (!url.startsWith('http')) url = 'http://' + url;
+  try {
+    const r = await fetch(url + '/api/system');
+    const d = await r.json();
+    if (d.panel) {
+      localStorage.setItem('risco-server', url);
+      BASE = url;
+      $('#connect').style.display = 'none';
+      load();
+    } else {
+      $('#connect-err').textContent = 'Connected but panel not ready. Is the server running?';
+    }
+  } catch(e) {
+    $('#connect-err').textContent = 'Cannot reach ' + url + ' — check the address and make sure server is running';
+  }
+}
+
+const api = async p => (await fetch(BASE+'/api/'+p)).json();
+const post = async (p,b) => (await fetch(BASE+'/api/'+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})})).json();
+const put = async (p,b) => (await fetch(BASE+'/api/'+p,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();
+
+function toast(msg, err){const t=$('#toast');t.textContent=msg;t.className='toast'+(err?' err':'');t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
+function tag(t,c){return `<span class="t t-${c}">${t}</span>`}
+function bars(val,max,n=5){if(!val||val<=0)return'';let h='<span class="bars">';for(let i=0;i<n;i++){h+=`<span class="bar ${val>(max/n)*(i+1)?'on':'off'}" style="height:${4+i*3}px"></span>`}return h+'</span>'}
+function parseDate(s){if(!s)return null;const m=s.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);return m?new Date(m[3],m[2]-1,m[1],m[4],m[5]):null}
+function timeAgo(s){const d=parseDate(s);if(!d)return'';const diff=Date.now()-d.getTime();if(diff<0)return'';const m=Math.floor(diff/60000);if(m<60)return m+'m';const h=Math.floor(m/60);if(h<24)return h+'h';const dy=Math.floor(h/24);if(dy<30)return dy+'d';const mo=Math.floor(dy/30);if(mo<12)return mo+'mo';return Math.floor(mo/12)+'y'}
+function sec(id,title,body,open=true){$(id).innerHTML=`<div class="sec-hdr" onclick="this.querySelector('.arr').classList.toggle('open');this.nextElementSibling.classList.toggle('closed')"><span class="arr ${open?'open':''}">\u25B6</span>${title}</div><div class="sec-body${open?'':' closed'}">${body}</div>`}
+function kv(p){return '<div class="kv">'+p.map(([k,v])=>`<span class="k">${k}</span><span class="v">${v}</span>`).join('')+'</div>'}
+function inp(id,val,type='text',w){return `<input type="${type}" id="${id}" value="${val||''}"${w?' style="width:'+w+'"':''}>`}
+function sel(id,opts,cur){return `<select id="${id}">${opts.map(([v,l])=>`<option value="${v}"${v==cur?' selected':''}>${l}</option>`).join('')}</select>`}
+function cb(id,label,checked){return `<label class="cb"><input type="checkbox" id="${id}"${checked?' checked':''}>${label}</label>`}
+function editBtn(onclick){return ` <button class="bgr" onclick="${onclick}">Edit</button>`}
+function saveBtn(onclick){return `<button class="bg" onclick="${onclick}">Save</button> `}
+
+async function doAction(p){const r=await post(p);toast(r.success?'Done':'Failed: '+JSON.stringify(r),!r.success);setTimeout(()=>location.reload(),500)}
+async function doSens(id,v){const r=await post('zones/'+id+'/sensitivity',{pirSensitivity:v});toast(r.success?'Saved':'Failed',!r.success)}
+
+async function savePut(endpoint, fields) {
+  const body = {};
+  fields.forEach(([key, elId, type]) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (type === 'bool') body[key] = el.checked;
+    else if (type === 'int') body[key] = parseInt(el.value) || 0;
+    else body[key] = el.value;
+  });
+  const r = await put(endpoint, body);
+  toast(r.success ? 'Saved' : 'Failed: ' + JSON.stringify(r), !r.success);
+}
+
+async function load(){
+  // ========== SYSTEM ==========
+  $('#sys').innerHTML='<div class="loader">Connecting to panel...</div>';
+  let sys;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    sys = await api('system');
+    if (sys.panel && sys.panel.model) break;
+    $('#sys').innerHTML=`<div class="loader">Waiting for panel... (${attempt+1}/10)</div>`;
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  if (!sys.panel || !sys.panel.model) { $('#sys').innerHTML='<div class="loader" style="color:#f87171">Panel not ready. Refresh in 30 seconds.</div>'; return; }
+  $('#clock').textContent = ' - ' + sys.panel.clock;
+  sec('#sys','System','<div class="g3">'+
+    `<div class="c"><div class="name">${sys.panel.model}</div><div class="dim">${sys.panel.version}</div>`+
+    `<div class="dim">S/N: ${sys.panel.serial} | Bat: ${sys.battery.voltage}</div>`+
+    `<div class="dim">Lang: ${sys.panel.language} | Label: ${sys.panel.label}</div>`+
+    editBtn(`toggleEl('sys-edit')`)+
+    `<div id="sys-edit" class="edit-panel" style="display:none"><div class="edit-title">Edit System</div>`+
+    `<div class="edit-row"><label>Label</label>${inp('se-lbl',sys.panel.label)}</div>`+
+    `<div class="edit-row"><label>Timezone</label>${inp('se-tz','','number','60px')}</div>`+
+    `<div class="edit-row"><label>Language</label>${inp('se-lang',sys.panel.language,'text','60px')}</div>`+
+    `<div class="edit-row">${saveBtn("savePut('system',[['label','se-lbl'],['timezone','se-tz','int'],['language','se-lang']])")}</div>`+
+    `</div></div>`+
+    `<div class="c"><div class="name">IP Module</div><div class="dim">${sys.ip.address} | ${sys.ip.mac}</div></div>`+
+    `<div class="c"><div class="name">GSM</div><div class="dim">${sys.gsm.imei}</div></div>`+
+  '</div>');
+
+  // ========== PARTITIONS ==========
+  const parts = await api('partitions');
+  let ph='<div class="g3">';
+  parts.forEach(p=>{
+    if(!p.status.exist)return;
+    const a=p.status.armed,s=p.status.homeStay;
+    ph+=`<div class="c ${a?'bad':'good'}"><div style="display:flex;justify-content:space-between;align-items:center">`;
+    ph+=`<div><div class="name">${p.label}</div><div class="row">`;
+    ph+=a?tag('ARMED'+(s?' HOME':' AWAY'),'err'):tag('DISARMED','ok');
+    if(p.status.ready)ph+=tag('READY','ok');if(p.status.alarm)ph+=tag('ALARM!','err');if(p.status.trouble)ph+=tag('TROUBLE','warn');
+    ph+=`</div></div><div style="display:flex;gap:4px">`;
+    ph+=`<button class="br" onclick="doAction('partitions/${p.id}/arm')">ARM</button>`;
+    ph+=`<button class="by" onclick="doAction('partitions/${p.id}/arm-stay')">STAY</button>`;
+    ph+=`<button class="bg" onclick="doAction('partitions/${p.id}/disarm')">DISARM</button>`;
+    ph+=`</div></div></div>`;
+  });
+  sec('#parts','Partitions',ph+'</div>');
+
+  // ========== ZONES ==========
+  $('#zones').innerHTML='<div class="loader">Loading zones...</div>';
+  const zones = await api('zones');
+  let zh='<table>';
+  zones.forEach(z=>{
+    const st=z.status||{};const bad=st.lowBattery||st.tamper||st.trouble||st.lost;
+    const dead=z.tech==='W'&&z.rssi===0;
+    const ci=z.lastCheckIn&&z.lastCheckIn!=='00/00/0000 00:00'?z.lastCheckIn:null;
+    zh+=`<tr${bad?' style="background:#1a0a0a"':''}>`;
+    zh+=`<td class="tid">${z.id}</td><td class="tname">${z.label}</td>`;
+    zh+=`<td class="tinfo">${z.tech==='W'?(dead?'':bars(z.rssi,80)):''}${z.tech} ${z.rssi?'('+z.rssi+')':''}`;
+    zh+=dead?` ${tag('DEAD','err')} <span class="dim">since ${timeAgo(z.lastTrigger)||'never'}</span>`:(ci?` <span class="dim">${timeAgo(ci)}</span>`:'');
+    zh+=`</td><td>`;
+    zh+=st.open?tag('OPEN','warn'):tag('CLOSED','ok');
+    zh+=st.lowBattery?tag('LOW BAT','err'):tag('OK','ok');
+    if(st.tamper)zh+=tag('TAMPER','err');if(st.trouble)zh+=tag('TROUBLE','warn');if(st.bypass)zh+=tag('BYPASS','info');if(st.lost)zh+=tag('LOST','err');
+    zh+=`</td><td>`;
+    if(z.wireless){
+      zh+=`<span class="dim">PIR:</span><select onchange="doSens(${z.id},+this.value)" style="width:40px">`;
+      for(let v=0;v<=5;v++)zh+=`<option${v===z.wireless.pirSensitivity?' selected':''}>${v}</option>`;
+      zh+=`</select> <span class="dim">MW:${z.wireless.microwaveSensitivity}</span> `;
+    }
+    zh+=`<button class="bp" onclick="doAction('zones/${z.id}/bypass')">BYPASS</button>`;
+    zh+=` <button class="bgr" onclick="toggleEl('ze-${z.id}')">...</button>`;
+    zh+=`</td></tr>`;
+    // Edit row
+    zh+=`<tr id="ze-${z.id}" style="display:none"><td colspan="5"><div class="edit-panel"><div class="edit-title">Zone ${z.id} Config</div>`;
+    zh+=`<div class="edit-row"><label>Label</label>${inp('zl-'+z.id,z.label)}</div>`;
+    if(z.wireless){
+      zh+=`<div class="edit-row"><label>PIR Sensitivity</label>${inp('zp-'+z.id,z.wireless.pirSensitivity,'number','50px')} <label>MW Sensitivity</label>${inp('zm-'+z.id,z.wireless.microwaveSensitivity,'number','50px')}</div>`;
+      zh+=`<div class="edit-row"><label>Pulse Count</label>${inp('zpc-'+z.id,z.wireless.pulseCount,'number','50px')} <label>LED</label>${sel('zled-'+z.id,[['0','Off'],['1','On']],z.wireless.ledEnabled)}</div>`;
+    }
+    zh+=`<div class="edit-row">${saveBtn(`saveZone(${z.id},${z.tech==='W'})`)} <button class="br" onclick="doAction('zones/${z.id}/bypass')">Toggle Bypass</button></div>`;
+    zh+=`</div></td></tr>`;
+  });
+  sec('#zones',`Zones (${zones.length})`,zh+'</table>');
+
+  // ========== OUTPUTS ==========
+  const outs = await api('outputs');
+  let oh='<table>';
+  outs.forEach(o=>{
+    oh+=`<tr><td class="tid">${o.id}</td><td class="tname">${o.label}</td>`;
+    oh+=`<td class="dim">Type:${o.type} Pulse:${o.pulse}s</td>`;
+    oh+=`<td><button class="bb" onclick="doAction('outputs/${o.id}/activate')">ACTIVATE</button>`;
+    oh+=` <button class="bgr" onclick="toggleEl('oe-${o.id}')">...</button></td></tr>`;
+    oh+=`<tr id="oe-${o.id}" style="display:none"><td colspan="4"><div class="edit-panel"><div class="edit-title">Output ${o.id}</div>`;
+    oh+=`<div class="edit-row"><label>Label</label>${inp('ol-'+o.id,o.label)} <label>Type</label>${inp('ot-'+o.id,o.type,'number','50px')} <label>Pulse</label>${inp('op-'+o.id,o.pulse,'number','50px')}s</div>`;
+    oh+=`<div class="edit-row">${saveBtn(`savePut('outputs/${o.id}',[['label','ol-${o.id}'],['type','ot-${o.id}','int'],['pulse','op-${o.id}','int']])`)}</div>`;
+    oh+=`</div></td></tr>`;
+  });
+  sec('#outs','Outputs',oh+'</table>');
+
+  // ========== USERS ==========
+  const users = await api('users');
+  let uh='<table>';
+  users.forEach(u=>{
+    uh+=`<tr><td class="tid">${u.id}</td><td class="tname">${u.label}</td><td class="dim">Level:${u.level}</td>`;
+    uh+=`<td><button class="bgr" onclick="toggleEl('ue-${u.id}')">Edit</button></td></tr>`;
+    uh+=`<tr id="ue-${u.id}" style="display:none"><td colspan="4"><div class="edit-panel"><div class="edit-title">User ${u.id}</div>`;
+    uh+=`<div class="edit-row"><label>Label</label>${inp('ul-'+u.id,u.label)} <label>Level</label>${inp('ulv-'+u.id,u.level,'number','60px')} <label>PIN</label>${inp('up-'+u.id,'','password','80px')}</div>`;
+    uh+=`<div class="edit-row">${saveBtn(`savePut('users/${u.id}',[['label','ul-${u.id}'],['level','ulv-${u.id}','int'],['pin','up-${u.id}']])`)}</div>`;
+    uh+=`</div></td></tr>`;
+  });
+  sec('#users','Users',uh+'</table>');
+
+  // ========== KEYPADS ==========
+  const kps = await api('keypads');
+  let kh='<table>';
+  kps.forEach(k=>{
+    kh+=`<tr><td class="tid">${k.id}</td><td class="tname">${k.label}</td><td class="dim">RSSI:${k.rssi} Func:${k.function}</td>`;
+    kh+=`<td><button class="bgr" onclick="toggleEl('ke-${k.id}')">Edit</button></td></tr>`;
+    kh+=`<tr id="ke-${k.id}" style="display:none"><td colspan="4"><div class="edit-panel">`;
+    kh+=`<div class="edit-row"><label>Label</label>${inp('kl-'+k.id,k.label)} <label>Function</label>${inp('kf-'+k.id,k.function,'number','50px')}</div>`;
+    kh+=`<div class="edit-row">${saveBtn(`savePut('keypads/${k.id}',[['label','kl-${k.id}'],['function','kf-${k.id}','int']])`)}</div>`;
+    kh+=`</div></td></tr>`;
+  });
+  sec('#keypads','Keypads',kh+'</table>',false);
+
+  // ========== KEYFOBS ==========
+  const fobs = await api('keyfobs');
+  let fh='<table>';
+  fobs.forEach(f=>{
+    fh+=`<tr><td class="tid">${f.id}</td><td class="tname">${f.label}</td><td class="dim">RSSI:${f.rssi} B1:${f.button1Type} B2:${f.button2Type}</td>`;
+    fh+=`<td><button class="bgr" onclick="toggleEl('fe-${f.id}')">Edit</button></td></tr>`;
+    fh+=`<tr id="fe-${f.id}" style="display:none"><td colspan="4"><div class="edit-panel">`;
+    fh+=`<div class="edit-row"><label>Label</label>${inp('fl-'+f.id,f.label)} <label>B1 Type</label>${inp('fb1-'+f.id,f.button1Type,'number','50px')} <label>B2 Type</label>${inp('fb2-'+f.id,f.button2Type,'number','50px')}</div>`;
+    fh+=`<div class="edit-row"><label>PIN</label>${inp('fp-'+f.id,'','password','80px')} <label>Panic</label>${sel('fpnc-'+f.id,[['0','Off'],['1','On']],f.panic||0)}</div>`;
+    fh+=`<div class="edit-row">${saveBtn(`savePut('keyfobs/${f.id}',[['label','fl-${f.id}'],['button1Type','fb1-${f.id}','int'],['button2Type','fb2-${f.id}','int'],['pin','fp-${f.id}'],['panic','fpnc-${f.id}','int']])`)}</div>`;
+    fh+=`</div></td></tr>`;
+  });
+  sec('#keyfobs','Keyfobs',fh+'</table>',false);
+
+  // ========== SIRENS ==========
+  const sirens = await api('sirens');
+  let ssh='<table>';
+  sirens.forEach(s=>{
+    ssh+=`<tr><td class="tid">${s.id}</td><td class="dim">Type:${s.type} RSSI:${s.rssi} Alarm:${s.soundAlarm} Squawk:${s.soundSquawk} Strobe:${s.strobe}</td>`;
+    ssh+=`<td><button class="bgr" onclick="toggleEl('se-${s.id}')">Edit</button></td></tr>`;
+    ssh+=`<tr id="se-${s.id}" style="display:none"><td colspan="3"><div class="edit-panel">`;
+    ssh+=`<div class="edit-row"><label>Type</label>${inp('st-'+s.id,s.type,'number','50px')} <label>Sound Alarm</label>${sel('ssa-'+s.id,[['0','Off'],['1','On']],s.soundAlarm)} <label>Squawk</label>${sel('ssq-'+s.id,[['0','Off'],['1','On']],s.soundSquawk)}</div>`;
+    ssh+=`<div class="edit-row"><label>Strobe</label>${sel('sst-'+s.id,[['0','Off'],['1','On']],s.strobe)} <label>Strobe Block</label>${inp('ssb-'+s.id,s.strobeBlock,'number','50px')}</div>`;
+    ssh+=`<div class="edit-row">${saveBtn(`savePut('sirens/${s.id}',[['type','st-${s.id}','int'],['soundAlarm','ssa-${s.id}','int'],['soundSquawk','ssq-${s.id}','int'],['strobe','sst-${s.id}','int'],['strobeBlock','ssb-${s.id}','int']])`)}</div>`;
+    ssh+=`</div></td></tr>`;
+  });
+  if(!sirens.length)ssh+='<tr><td class="dim">No sirens</td></tr>';
+  sec('#sirens','Sirens',ssh+'</table>',false);
+
+  // ========== FOLLOW ME ==========
+  const fm = await api('followme');
+  let fmh='<table>';
+  fm.forEach(f=>{
+    const ev=f.events,tags=[];
+    if(ev.alarm)tags.push(tag('ALM','err'));if(ev.fire)tags.push(tag('FIRE','err'));if(ev.panic)tags.push(tag('PNC','err'));
+    if(ev.emergency)tags.push(tag('EMG','err'));if(ev.open)tags.push(tag('OPN','warn'));if(ev.arm)tags.push(tag('ARM','info'));
+    if(ev.disarm)tags.push(tag('DARM','ok'));if(ev.technical)tags.push(tag('TECH','dim'));if(ev.tamper)tags.push(tag('TMP','warn'));if(ev.zoneBattery)tags.push(tag('ZBAT','warn'));
+    fmh+=`<tr><td class="tid">${f.id}</td><td class="tname">${f.label}</td>`;
+    fmh+=`<td class="dim">${f.phone||'--'} ${f.email||''}</td><td>${tags.join('')}</td>`;
+    fmh+=`<td><button class="bgr" onclick="toggleEl('fme-${f.id}')">Edit</button></td></tr>`;
+    fmh+=`<tr id="fme-${f.id}" style="display:none"><td colspan="5"><div class="edit-panel"><div class="edit-title">Follow Me ${f.id}</div>`;
+    fmh+=`<div class="edit-row"><label>Label</label>${inp('fml-'+f.id,f.label)} <label>Phone</label>${inp('fmp-'+f.id,f.phone)} <label>Email</label>${inp('fme2-'+f.id,f.email,'text','200px')}</div>`;
+    fmh+=`<div class="edit-row"><label>Channel</label>${sel('fmc-'+f.id,[['0','None'],['1','Voice'],['2','SMS'],['3','Email']],f.channel)}</div>`;
+    fmh+=`<div class="edit-row" style="margin-top:6px">`;
+    fmh+=cb('fma-'+f.id,'Alarm',ev.alarm)+cb('fmf-'+f.id,'Fire',ev.fire)+cb('fmpn-'+f.id,'Panic',ev.panic);
+    fmh+=cb('fmem-'+f.id,'Emergency',ev.emergency)+cb('fmop-'+f.id,'Open',ev.open)+cb('fmar-'+f.id,'Arm',ev.arm);
+    fmh+=cb('fmda-'+f.id,'Disarm',ev.disarm)+cb('fmtc-'+f.id,'Technical',ev.technical)+cb('fmtm-'+f.id,'Tamper',ev.tamper);
+    fmh+=cb('fmzb-'+f.id,'Zone Battery',ev.zoneBattery);
+    fmh+=`</div>`;
+    fmh+=`<div class="edit-row">${saveBtn(`saveFollowMe(${f.id})`)}</div>`;
+    fmh+=`</div></td></tr>`;
+  });
+  sec('#followme','Follow Me',fmh+'</table>',false);
+
+  // ========== MONITORING ==========
+  const ms = await api('monitoring');
+  let msh='<table>';
+  ms.forEach(m=>{
+    msh+=`<tr><td class="tid">${m.id}</td><td class="dim">Acct:${m.account} Ph:${m.phone||'--'} IP:${m.ip||'--'}:${m.port} Ch:${m.channel}</td>`;
+    msh+=`<td><button class="bgr" onclick="toggleEl('mse-${m.id}')">Edit</button></td></tr>`;
+    msh+=`<tr id="mse-${m.id}" style="display:none"><td colspan="3"><div class="edit-panel">`;
+    msh+=`<div class="edit-row"><label>Account</label>${inp('msa-'+m.id,m.account)} <label>Phone</label>${inp('msp-'+m.id,m.phone)}</div>`;
+    msh+=`<div class="edit-row"><label>IP</label>${inp('msi-'+m.id,m.ip)} <label>Port</label>${inp('mspt-'+m.id,m.port,'number','60px')} <label>Channel</label>${inp('msc-'+m.id,m.channel,'number','50px')}</div>`;
+    msh+=`<div class="edit-row">${saveBtn(`savePut('monitoring/${m.id}',[['account','msa-${m.id}'],['phone','msp-${m.id}'],['ip','msi-${m.id}'],['port','mspt-${m.id}','int'],['channel','msc-${m.id}','int']])`)}</div>`;
+    msh+=`</div></td></tr>`;
+  });
+  sec('#monitoring','Monitoring Stations',msh+'</table>',false);
+
+  // ========== CLOUD ==========
+  const cl = await api('cloud');
+  sec('#cloud','RiscoCloud',`<div class="c">${kv([
+    ['Enabled',cl.enabled?tag('ON','ok'):tag('OFF','dim')],['Server',cl.server],['Port',cl.port],
+    ['Arm',cl.armEnabled?'Yes':'No'],['Disarm',cl.disarmEnabled?'Yes':'No'],['Encrypted',cl.encrypted?'Yes':'No'],
+  ])}`+editBtn(`toggleEl('cle')`)+
+  `<div id="cle" class="edit-panel" style="display:none"><div class="edit-title">Cloud Settings</div>`+
+  `<div class="edit-row"><label>Enabled</label>${sel('clen',[['0','No'],['1','Yes']],cl.enabled?1:0)} <label>Server</label>${inp('clsrv',cl.server)} <label>Port</label>${inp('clpt',cl.port,'number','60px')}</div>`+
+  `<div class="edit-row"><label>Password</label>${inp('clpw',cl.password,'password')} <label>Arm</label>${sel('clar',[['0','No'],['1','Yes']],cl.armEnabled?1:0)} <label>Disarm</label>${sel('clda',[['0','No'],['1','Yes']],cl.disarmEnabled?1:0)}</div>`+
+  `<div class="edit-row">${saveBtn("savePut('cloud',[['enabled','clen','int'],['server','clsrv'],['port','clpt','int'],['password','clpw'],['armEnabled','clar','int'],['disarmEnabled','clda','int']])")}</div>`+
+  `</div></div>`,false);
+
+  // ========== GSM ==========
+  const gsm = await api('gsm');
+  const sig=gsm.signal||{};
+  sec('#gsm-sec','GSM Module','<div class="g3">'+
+    `<div class="c"><div class="name">Signal ${bars(sig.rssi,31)}</div>`+
+    `<div style="font-size:18px;font-weight:700;color:${sig.bars>=3?'#22c55e':sig.bars>=2?'#eab308':'#ef4444'};margin:4px 0">${sig.quality||'?'}</div>`+
+    `<div class="dim">${sig.rssi}/31 (${sig.dbm} dBm)</div></div>`+
+    `<div class="c">${kv([['IMEI',gsm.imei],['SIM',gsm.simSerial],['APN',gsm.apn],['Provider',gsm.provider||'--']])}`+
+    editBtn(`toggleEl('gsme')`)+
+    `<div id="gsme" class="edit-panel" style="display:none">`+
+    `<div class="edit-row"><label>APN</label>${inp('gapn',gsm.apn)} <label>Provider</label>${inp('gprov',gsm.provider)}</div>`+
+    `<div class="edit-row"><label>SIM PIN</label>${inp('gspin',gsm.simPin,'password','80px')}</div>`+
+    `<div class="edit-row">${saveBtn("savePut('gsm',[['apn','gapn'],['provider','gprov'],['simPin','gspin']])")}</div>`+
+    `</div></div>`+
+    `<div class="c">${kv([['Registered',(gsm.statusFlags||{}).registered?tag('YES','ok'):tag('NO','err')],['SIM',(gsm.statusFlags||{}).simInserted?tag('YES','ok'):tag('NO','err')],['Net Loss',gsm.networkLoss+'min']])}</div>`+
+  '</div>',false);
+
+  // ========== NETWORK ==========
+  const net = await api('network');
+  sec('#network','Network',`<div class="c">${kv([['IP',net.ip],['Subnet',net.subnet],['Gateway',net.gateway],['MAC',net.mac],['DNS',net.dns||'--'],['NetBIOS',net.netbios]])}`+
+  editBtn(`toggleEl('nete')`)+
+  `<div id="nete" class="edit-panel" style="display:none"><div class="edit-title">Network Settings</div>`+
+  `<div class="edit-row"><label>IP</label>${inp('nip',net.ip)} <label>Subnet</label>${inp('nsub',net.subnet)} <label>Gateway</label>${inp('ngw',net.gateway)}</div>`+
+  `<div class="edit-row"><label>DNS</label>${inp('ndns',net.dns)} <label>NetBIOS</label>${inp('nnb',net.netbios)}</div>`+
+  `<div class="edit-row">${saveBtn("savePut('network',[['ip','nip'],['subnet','nsub'],['gateway','ngw'],['dns','ndns'],['netbios','nnb']])")}</div>`+
+  `</div></div>`,false);
+
+  // ========== ARMING CONFIG ==========
+  const arm = await api('arming-config');
+  sec('#arming','Arming Config',`<div class="c">${kv([
+    ['Entry Delay',arm.entryDelay+'s'],['Exit Delay',arm.exitDelay+'s'],['Bell Timeout',arm.bellTimeout+'m'],
+    ['Swinger',arm.swingerShutdown],['Quick Arm',arm.quickArm?'Yes':'No'],['Bypass Always',arm.bypassAlways?'Yes':'No'],
+  ])}`+editBtn(`toggleEl('arme')`)+
+  `<div id="arme" class="edit-panel" style="display:none"><div class="edit-title">Arming Settings</div>`+
+  `<div class="edit-row"><label>Entry Delay (s)</label>${inp('aed',arm.entryDelay,'number','60px')} <label>Exit Delay (s)</label>${inp('axd',arm.exitDelay,'number','60px')} <label>Bell Timeout (m)</label>${inp('abt',arm.bellTimeout,'number','60px')}</div>`+
+  `<div class="edit-row"><label>Bell Delay (s)</label>${inp('abd',arm.bellDelay,'number','60px')} <label>Swinger</label>${inp('asw',arm.swingerShutdown,'number','60px')} <label>AC Delay (s)</label>${inp('aac',arm.acDelay||0,'number','60px')}</div>`+
+  `<div class="edit-row">` +
+  cb('aqarm','Quick Arm',arm.quickArm)+cb('aqbyp','Quick Bypass',arm.quickBypass)+cb('abya','Bypass Always',arm.bypassAlways)+
+  cb('aexr','Exit Restrict',arm.exitRestrict)+cb('awrn','Warn Arm',arm.warnBeforeArm)+cb('asil','Silent Install',arm.silentInstall)+
+  `</div>`+
+  `<div class="edit-row">${saveBtn("saveArmConfig()")}</div>`+
+  `</div></div>`,false);
+
+  // ========== SCHEDULES ==========
+  const scheds = await api('schedules');
+  let sch='<table>';
+  scheds.forEach(s=>{
+    sch+=`<tr><td class="tid">${s.id}</td><td class="tname">${s.label}</td><td>${s.enabled?tag('ON','ok'):tag('OFF','dim')}</td><td class="dim">Type:${s.type}</td>`;
+    sch+=`<td><button class="bgr" onclick="toggleEl('sce-${s.id}')">Edit</button></td></tr>`;
+    sch+=`<tr id="sce-${s.id}" style="display:none"><td colspan="5"><div class="edit-panel">`;
+    sch+=`<div class="edit-row"><label>Label</label>${inp('scl-'+s.id,s.label)} <label>Type</label>${inp('sct-'+s.id,s.type,'number','50px')} <label>Enabled</label>${sel('sce2-'+s.id,[['0','No'],['1','Yes']],s.enabled?1:0)}</div>`;
+    sch+=`<div class="edit-row">${saveBtn(`savePut('schedules/${s.id}',[['label','scl-${s.id}'],['type','sct-${s.id}','int'],['enabled','sce2-${s.id}','int']])`)}</div>`;
+    sch+=`</div></td></tr>`;
+  });
+  sec('#schedules','Schedules',sch+'</table>',false);
+
+  // ========== VACATIONS ==========
+  const vacs = await api('vacations');
+  let vh='<table>';
+  vacs.forEach(v=>{
+    vh+=`<tr><td class="tid">${v.id}</td><td class="tname">${v.label||'Vacation'}</td><td>${v.enabled?tag('ON','ok'):tag('OFF','dim')}</td><td class="dim">${v.start} - ${v.end}</td>`;
+    vh+=`<td><button class="bgr" onclick="toggleEl('ve-${v.id}')">Edit</button></td></tr>`;
+    vh+=`<tr id="ve-${v.id}" style="display:none"><td colspan="5"><div class="edit-panel">`;
+    vh+=`<div class="edit-row"><label>Enabled</label>${sel('ven-'+v.id,[['0','No'],['1','Yes']],v.enabled?1:0)} <label>Label</label>${inp('vlb-'+v.id,v.label)}</div>`;
+    vh+=`<div class="edit-row">${saveBtn(`savePut('vacations/${v.id}',[['enabled','ven-${v.id}','int'],['label','vlb-${v.id}']])`)}</div>`;
+    vh+=`</div></td></tr>`;
+  });
+  if(!vacs.length)vh+='<tr><td class="dim" colspan="5">None</td></tr>';
+  sec('#vacations','Vacations',vh+'</table>',false);
+
+  // ========== EVENTS ==========
+  const evts = await api('events');
+  let eh='<div style="max-height:200px;overflow:auto;font-family:monospace;font-size:11px">';
+  evts.forEach(e=>{eh+=`<div style="padding:2px 0;border-bottom:1px solid #1a2236;color:#64748b">${e.raw}</div>`});
+  if(!evts.length)eh+='<div class="dim">No events</div>';
+  sec('#events','Events ('+evts.length+')',eh+'</div>',false);
+
+  // ========== FIRMWARE ==========
+  const fw = await api('firmware');
+  sec('#firmware','Firmware',`<div class="c dim">${fw.server} / ${fw.file}:${fw.port}</div>`,false);
+
+  // ========== ACTIONS ==========
+  sec('#actions','System Actions',`<div class="row" style="padding:8px 0;gap:8px">`+
+    `<button class="bb" onclick="doAction('rf-test')">Start RF Test</button>`+
+    `<button class="bgr" onclick="doAction('rf-test/stop')">Stop RF Test</button>`+
+    `<button class="by" onclick="doAction('reset-tech')">Reset Tech Troubles</button>`+
+  `</div>`,false);
+
+  // ========== RAW ==========
+  sec('#raw','Raw Command',`<div class="raw-row"><input id="cmd" placeholder="Z2WPRSNS9? or CLOCK?"><button class="bb" onclick="rawCmd(false)">SEND</button><button class="by" onclick="rawCmd(true)">PROG</button></div><pre id="rawout"></pre>`);
+}
+
+// ========== SAVE HELPERS ==========
+function toggleEl(id){const el=document.getElementById(id);el.style.display=el.style.display==='none'?'':'none'}
+
+async function saveZone(id, wireless) {
+  const fields = [['label','zl-'+id]];
+  if (wireless) {
+    fields.push(['pirSensitivity','zp-'+id,'int'],['microwaveSensitivity','zm-'+id,'int'],['pulseCount','zpc-'+id,'int'],['ledEnabled','zled-'+id,'int']);
+    // Save sensitivity separately
+    const ps = parseInt(document.getElementById('zp-'+id).value);
+    const ms = parseInt(document.getElementById('zm-'+id).value);
+    await post('zones/'+id+'/sensitivity', {pirSensitivity:ps, microwaveSensitivity:ms});
+    // Save other config
+    await savePut('zones/'+id+'/config', [['label','zl-'+id],['pulseCount','zpc-'+id,'int'],['ledEnabled','zled-'+id,'int']]);
+  } else {
+    await savePut('zones/'+id+'/config', fields);
+  }
+}
+
+async function saveFollowMe(id) {
+  await savePut('followme/'+id, [
+    ['label','fml-'+id],['phone','fmp-'+id],['email','fme2-'+id],['channel','fmc-'+id,'int'],
+    ['alarm','fma-'+id,'bool'],['fire','fmf-'+id,'bool'],['panic','fmpn-'+id,'bool'],
+    ['emergency','fmem-'+id,'bool'],['open','fmop-'+id,'bool'],['arm','fmar-'+id,'bool'],
+    ['disarm','fmda-'+id,'bool'],['technical','fmtc-'+id,'bool'],['tamper','fmtm-'+id,'bool'],
+    ['zoneBattery','fmzb-'+id,'bool'],
+  ]);
+}
+
+async function saveArmConfig() {
+  await savePut('arming-config', [
+    ['entryDelay','aed','int'],['exitDelay','axd','int'],['bellTimeout','abt','int'],
+    ['bellDelay','abd','int'],['swingerShutdown','asw','int'],['acDelay','aac','int'],
+    ['quickArm','aqarm','bool'],['quickBypass','aqbyp','bool'],['bypassAlways','abya','bool'],
+    ['exitRestrict','aexr','bool'],['warnBeforeArm','awrn','bool'],['silentInstall','asil','bool'],
+  ]);
+}
+
+async function rawCmd(prog){
+  const cmd=document.getElementById('cmd').value;
+  const r=await post('raw',{command:cmd,prog});
+  document.getElementById('rawout').textContent=JSON.stringify(r,null,2);
+}
+
+// Boot: check if we have a server URL, otherwise show connect screen
+(async () => {
+  BASE = getBase();
+  if (BASE === null) {
+    // No saved server and not served locally — show connect dialog
+    $('#connect').style.display = 'block';
+    // Pre-fill with common local addresses
+    $('#server-url').value = 'http://localhost:3580';
+    return;
+  }
+  try { await load(); } catch(e) {
+    // If saved server fails, show connect dialog
+    localStorage.removeItem('risco-server');
+    $('#connect').style.display = 'block';
+    $('#server-url').value = BASE || 'http://localhost:3580';
+    $('#connect-err').textContent = 'Lost connection: ' + e.message;
+  }
+})();
+</script></body></html>

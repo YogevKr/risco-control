@@ -1,0 +1,10 @@
+node_modules
+cs-software.zip
+cs-extract/
+cs-binaries/
+cs-app/
+app/
+*.output
+.18a4519d*
+memory/
+supported-commands.json

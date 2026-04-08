@@ -1,0 +1,18 @@
+{
+  "name": "risco-control",
+  "version": "1.0.0",
+  "description": "Full Risco alarm panel control — replaces CS.exe Configuration Software",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "doctor": "node doctor.js"
+  },
+  "keywords": ["risco", "alarm", "lightsys", "prosys", "security", "home-automation"],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "risco-lan-bridge": "^0.10.5"
+  }
+}

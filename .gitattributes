@@ -1,0 +1,2 @@
+risco-control filter=lfs diff=lfs merge=lfs -text
+Risco[[:space:]]Control.app/Contents/MacOS/risco-control filter=lfs diff=lfs merge=lfs -text
