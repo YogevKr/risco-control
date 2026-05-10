@@ -13,3 +13,11 @@ capture.log
 supported-commands.json
 all-commands.txt
 *.output
+risco-config.json
+risco-panel-secrets.json
+risco-deep-audit-*.json
+risco-deep-audit-*.md
+.udaccid-recovery-state.json
+Risco Control.app/Contents/MacOS/risco-config.json
+.18a*
+Risco-Control-macOS-arm64.zip

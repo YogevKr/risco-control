@@ -1,17 +1,13 @@
-const RiscoTCPPanel = require('risco-lan-bridge');
+const { createPanel } = require('./panel-runtime');
+const { assessGsmHealth } = require('./gsm-health');
 
-const Options = {
-  Panel_IP: '192.168.40.199',
-  Panel_Port: 1000,
-  Panel_Password: 5678,
-  Panel_Id: '0001',
-  AutoDiscover: true,
-  DiscoverCode: true,
-  AutoConnect: true,
-  SocketMode: 'direct',
-};
+const { panel } = createPanel();
 
-const panel = new RiscoTCPPanel.LightSys(Options);
+function maskIdentifier(value) {
+  const s = String(value ?? '').trim();
+  if (!s || ['N/A', 'N05', 'N19'].includes(s)) return s;
+  return s.length <= 4 ? '{present}' : `{present,ending=${s.slice(-4)}}`;
+}
 
 panel.on('SystemInitComplete', async () => {
   const tcp = panel.RiscoComm.TCPSocket;
@@ -70,21 +66,21 @@ panel.on('SystemInitComplete', async () => {
 
   // ---- GSM ----
   console.log('Scanning GSM...');
-  const grssi = parseInt(await read('GRSSI'));
+  const grssi = await read('GRSSI');
   const gsmstt = await read('GSMSTT');
   const gimei = await read('GIMEI');
   const gsmver = await read('GSMVER');
+  const gsmHealth = assessGsmHealth(gsmstt, grssi);
 
   info.push(`GSM: ${gsmver}`);
-  info.push(`GSM IMEI: ${gimei}`);
-  info.push(`GSM RSSI: ${grssi}/31 (${grssi===0?-113:-113+grssi*2} dBm)`);
+  info.push(`GSM IMEI: ${maskIdentifier(gimei)}`);
+  info.push(`GSM Status: ${gsmHealth.summary} (${gsmstt})`);
+  info.push(`GSM RSSI: ${gsmHealth.signal.rssi}/31 (${gsmHealth.signal.dbm} dBm, ${gsmHealth.signal.quality})`);
 
-  if (grssi === 0) issues.push('GSM: No signal at all (RSSI=0)');
-  else if (grssi <= 5) issues.push(`GSM: Very weak signal (RSSI=${grssi}/31, ${-113+grssi*2} dBm) - may fail to report alarms`);
-  else if (grssi <= 10) warnings.push(`GSM: Weak signal (RSSI=${grssi}/31)`);
-
-  if (!gsmstt.includes('Q') && gsmstt[2] === '-') warnings.push('GSM: SIM card not detected');
-  if (gsmstt[0] === '-' && gsmstt[1] === '-') warnings.push('GSM: Not registered on network');
+  for (const finding of gsmHealth.findings) {
+    const target = finding.severity === 'issue' ? issues : warnings;
+    target.push(`GSM: ${finding.message}`);
+  }
 
   // ---- IP MODULE ----
   console.log('Scanning IP module...');
@@ -211,7 +207,7 @@ panel.on('SystemInitComplete', async () => {
     if (!ulbl) continue;
 
     if (upin === '1234' || upin === '0000' || upin === '1111') {
-      warnings.push(`USER ${i} (${ulbl}): Using weak/default PIN (${upin})`);
+      warnings.push(`USER ${i} (${ulbl}): Using weak/default PIN`);
     }
   }
 
@@ -222,13 +218,13 @@ panel.on('SystemInitComplete', async () => {
   const udaccid = await read('UDACCID');
 
   if (instpin === '0000' || instpin === '1234' || instpin === '4321') {
-    warnings.push(`INSTALLER PIN is weak/default: ${instpin}`);
+    warnings.push('INSTALLER PIN is weak/default');
   }
   if (subpin === '0000' || subpin === '1234' || subpin === '1111' || subpin === '2222') {
-    warnings.push(`SUB-INSTALLER PIN is weak/default: ${subpin}`);
+    warnings.push('SUB-INSTALLER PIN is weak/default');
   }
   if (udaccid === '5678' || udaccid === '0000' || udaccid === '1234') {
-    issues.push(`REMOTE ACCESS CODE is default: ${udaccid} - anyone can connect to your panel!`);
+    issues.push('REMOTE ACCESS CODE is weak/default - anyone with network access may connect to your panel!');
   }
 
   // ---- MONITORING STATIONS ----

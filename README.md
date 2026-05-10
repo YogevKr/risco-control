@@ -47,7 +47,7 @@ docker compose up -d
 
 ## Features
 
-- 307/307 panel commands — 100% coverage of CS.exe
+- 5,987-command catalog from CS.exe XML plus live panel support status
 - Real-time zone status, battery, signal strength
 - Arm/Disarm/Stay from browser
 - PIR/MW/Shock sensitivity control (Z2W commands — discovered by reverse engineering CS.exe)

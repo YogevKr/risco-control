@@ -5,6 +5,13 @@ cs-binaries/
 cs-app/
 app/
 *.output
-.18a4519d*
+.18a*
 memory/
 supported-commands.json
+risco-config.json
+risco-panel-secrets.json
+risco-deep-audit-*.json
+risco-deep-audit-*.md
+.udaccid-recovery-state.json
+Risco Control.app/Contents/MacOS/risco-config.json
+Risco-Control-macOS-arm64.zip

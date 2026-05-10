@@ -1,27 +1,8 @@
-const RiscoTCPPanel = require('risco-lan-bridge');
+const { createPanel } = require('./panel-runtime');
 
-// ============================================
-// CONFIGURE THESE FOR YOUR PANEL
-// ============================================
-const Options = {
-  Panel_IP: process.env.RISCO_IP || '192.168.40.199',
-  Panel_Port: parseInt(process.env.RISCO_PORT) || 1000,
-  Panel_Password: parseInt(process.env.RISCO_PASSWORD) || 5678,
-  Panel_Id: process.env.RISCO_PANEL_ID || '0001',
-  AutoDiscover: true,
-  DiscoverCode: true,
-  AutoConnect: true,
-  SocketMode: 'direct',
-  log: console,
-};
+const { panel, panelOptions, panelType } = createPanel({ log: console });
 
-// Change this to match your panel type:
-// Agility, WiComm, WiCommPro, LightSys, ProsysPlus, GTPlus
-const PANEL_TYPE = process.env.RISCO_PANEL_TYPE || 'LightSys';
-
-console.log(`Connecting to Risco ${PANEL_TYPE} at ${Options.Panel_IP}:${Options.Panel_Port}...`);
-
-const panel = new RiscoTCPPanel[PANEL_TYPE](Options);
+console.log(`Connecting to Risco ${panelType} at ${panelOptions.Panel_IP}:${panelOptions.Panel_Port}...`);
 
 panel.on('SystemInitComplete', () => {
   console.log('\n========================================');

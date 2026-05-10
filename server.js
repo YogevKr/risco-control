@@ -1,44 +1,53 @@
 const express = require('express');
-const RiscoTCPPanel = require('risco-lan-bridge');
+const { createPanel, getPanelRuntime, loadConfig, saveConfig, DEFAULTS, supportedPanelTypes } = require('./panel-runtime');
+const { assessGsmHealth } = require('./gsm-health');
+const { buildCommandMenu, isSensitiveCommand, loadCommandCatalog, maskPanelResponse } = require('./command-catalog');
+const { assessAuditSnapshot } = require('./audit');
 
+const { host: HOST, port: PORT } = getPanelRuntime();
 const app = express();
 app.use(express.json());
-// CORS — allow cloud-hosted UI to reach local server
+
+function allowedOrigins() {
+  const configured = (process.env.RISCO_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return new Set([
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`,
+    `http://[::1]:${PORT}`,
+    ...configured,
+  ]);
+}
+
+// Local control server: default deny browser origins outside localhost.
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin && !allowedOrigins().has(origin)) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  if (origin) res.header('Access-Control-Allow-Origin', origin);
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
 
-const PANEL_IP = process.env.RISCO_IP || '192.168.40.199';
-const PANEL_PORT = parseInt(process.env.RISCO_PORT) || 1000;
-const PANEL_PASSWORD = parseInt(process.env.RISCO_PASSWORD) || 5678;
-const PANEL_ID = process.env.RISCO_PANEL_ID || '0001';
-const PANEL_TYPE = process.env.RISCO_PANEL_TYPE || 'LightSys';
-const PORT = parseInt(process.env.PORT) || 3580;
-
 let panel = null;
 let tcp = null;
 let ready = false;
+const commandCatalog = loadCommandCatalog(__dirname);
+const commandMenu = buildCommandMenu(commandCatalog);
+const commandByName = new Map(commandCatalog.commands.map((entry) => [entry.command, entry]));
+const silentLog = Object.freeze({ error() {}, warn() {}, info() {}, debug() {} });
+const silentLogger = () => {};
 
 // ============================================
 // Panel Connection
 // ============================================
 function connectPanel() {
-  const Options = {
-    Panel_IP: PANEL_IP,
-    Panel_Port: PANEL_PORT,
-    Panel_Password: PANEL_PASSWORD,
-    Panel_Id: PANEL_ID,
-    AutoDiscover: true,
-    DiscoverCode: true,
-    AutoConnect: true,
-    SocketMode: 'direct',
-  };
-
-  panel = new RiscoTCPPanel[PANEL_TYPE](Options);
+  ({ panel } = createPanel({ logger: silentLogger, log: silentLog }));
 
   panel.on('SystemInitComplete', () => {
     tcp = panel.RiscoComm.TCPSocket;
@@ -73,11 +82,247 @@ async function readCmd(cmd, prog = false) {
   return r;
 }
 
-async function writeCmd(cmd, value) {
+async function withProgrammingMode(work) {
   await sendCmd('PROG=1', true);
-  const r = await sendCmd(`${cmd}=${value}`, true);
-  try { await sendCmd('PROG=2', true); } catch(e) {}
-  return r;
+  try {
+    return await work();
+  } finally {
+    try { await sendCmd('PROG=2', true); } catch (error) {}
+  }
+}
+
+function normalizeWriteValue(value) {
+  return typeof value === 'boolean' ? Number(value) : value;
+}
+
+const WEAK_SECRET_VALUES = new Set([
+  '0000', '1111', '1234', '4321', '1212', '2222', '3333', '4444', '5555',
+  '6666', '7777', '8888', '9999', '0123', '000000', '111111', '123456', '654321',
+]);
+
+function hasSecretValue(value) {
+  const s = String(value ?? '').trim();
+  return !!s && !['N/A', 'N05', 'N19'].includes(s);
+}
+
+function secretInfo(value) {
+  const s = String(value ?? '').trim();
+  return {
+    present: hasSecretValue(s),
+    length: hasSecretValue(s) ? s.length : 0,
+    weak: WEAK_SECRET_VALUES.has(s),
+  };
+}
+
+function redacted(value) {
+  const info = secretInfo(value);
+  return info.present ? `{present,len=${info.length}}` : '';
+}
+
+function maskIdentifier(value) {
+  const s = String(value ?? '').trim();
+  if (!s || ['N/A', 'N05', 'N19'].includes(s)) return s;
+  return s.length <= 4 ? '{present}' : `{present,ending=${s.slice(-4)}}`;
+}
+
+async function writeCmd(cmd, value) {
+  return withProgrammingMode(() => sendCmd(`${cmd}=${normalizeWriteValue(value)}`, true));
+}
+
+function buildWriteEntries(body, commands, suffix = '') {
+  return Object.entries(commands)
+    .filter(([key]) => body[key] !== undefined)
+    .map(([key, cmd]) => ({
+      key,
+      command: `${cmd}${suffix}`,
+      value: normalizeWriteValue(body[key]),
+    }));
+}
+
+async function writeEntries(entries) {
+  if (entries.length === 0) return {};
+
+  const results = {};
+  await withProgrammingMode(async () => {
+    for (const entry of entries) {
+      results[entry.key] = await sendCmd(`${entry.command}=${entry.value}`, true);
+    }
+  });
+  return results;
+}
+
+async function safeReadCmd(cmd, fallback = '') {
+  try {
+    const value = await readCmd(cmd);
+    return value == null ? fallback : value;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+async function safeBatchRead(cmd, min, max) {
+  const value = await safeReadCmd(`${cmd}*${min}:${max}`);
+  return value ? value.split('\t').map((part) => part.trim()) : [];
+}
+
+function parseNumber(value, fallback = 0) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseRssiHex(value) {
+  const parsed = Number.parseInt(value, 16);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeZoneStatus(statusRaw, type, tech) {
+  const status = parseZoneStatus(statusRaw);
+  status.notUsed = !!status.notUsed || type === 0 || tech === 'N';
+  return status;
+}
+
+async function readAuditUsers() {
+  const users = [];
+  for (let i = 1; i <= 32; i++) {
+    const [label, level, pin] = await sequential([
+      safeReadCmd(`ULBL*${i}`),
+      safeReadCmd(`ULVL*${i}`),
+      safeReadCmd(`UPIN*${i}`),
+    ]);
+    const cleanLabel = String(label || '').trim();
+    if (!cleanLabel || cleanLabel.includes('N05')) continue;
+    users.push({
+      id: i,
+      label: cleanLabel,
+      level: parseNumber(level),
+      pinInfo: secretInfo(pin),
+    });
+  }
+  return users;
+}
+
+async function readAuditZones() {
+  const zones = [];
+  const maxZ = 50;
+
+  for (let i = 0; i < maxZ; i += 8) {
+    const min = i + 1;
+    const max = Math.min(i + 8, maxZ);
+    const expected = max - min + 1;
+    const [types, labels, statuses] = await sequential([
+      safeBatchRead('ZTYPE', min, max),
+      safeBatchRead('ZLBL', min, max),
+      safeBatchRead('ZSTT', min, max),
+    ]);
+
+    for (let j = 0; j < expected; j++) {
+      const id = min + j;
+      const type = parseNumber(types[j]);
+      const label = String(labels[j] || '').trim();
+      const statusRaw = String(statuses[j] || '').trim();
+      const tech = String(await safeReadCmd(`ZLNKTYP${id}`, 'N')).trim() || 'N';
+
+      if (tech === 'N' && type === 0) continue;
+      const status = normalizeZoneStatus(statusRaw, type, tech);
+
+      const zone = {
+        id,
+        label,
+        type,
+        tech,
+        status,
+        statusRaw,
+      };
+
+      if (tech === 'W') {
+        const [rssi, lastCheckIn, lastTrigger] = await sequential([
+          safeReadCmd(`ZRSSI${id}`),
+          safeReadCmd(`ZRSSITIM${id}`),
+          safeReadCmd(`ZRRI${id}`),
+        ]);
+        zone.rssi = parseRssiHex(rssi);
+        zone.lastCheckIn = String(lastCheckIn || '').trim();
+        zone.lastTrigger = String(lastTrigger || '').trim();
+      }
+
+      zones.push(zone);
+    }
+  }
+
+  return zones;
+}
+
+async function readAuditPartitions() {
+  const partitions = [];
+  for (let i = 1; i <= 4; i++) {
+    const [label, status] = await sequential([
+      safeReadCmd(`PLBL*${i}`),
+      safeReadCmd(`PSTT*${i}`),
+    ]);
+    const parsedStatus = parsePartitionStatus(status);
+    if (!parsedStatus.exist) continue;
+    partitions.push({ id: i, label: String(label || '').trim(), status: parsedStatus });
+  }
+  return partitions;
+}
+
+async function readAuditSnapshot() {
+  const [
+    pnlcnf, pnlver, clock, mainbat, sstt,
+    grssi, gsmstt,
+    uden, udrmtid, udaccid, instpin, subpin, simpin,
+    elasen, elaspass, elasarm, elasdarm, elasencr,
+    ripaddr, subnet, gateway,
+  ] = await sequential([
+    safeReadCmd('PNLCNF'), safeReadCmd('PNLVER'), safeReadCmd('CLOCK'), safeReadCmd('MAINBAT'), safeReadCmd('SSTT'),
+    safeReadCmd('GRSSI'), safeReadCmd('GSMSTT'),
+    safeReadCmd('UDEN'), safeReadCmd('UDRMTID'), safeReadCmd('UDACCID'), safeReadCmd('INSTPIN'), safeReadCmd('SUBPIN'), safeReadCmd('SIMPIN'),
+    safeReadCmd('ELASEN'), safeReadCmd('ELASPASS'), safeReadCmd('ELASARM'), safeReadCmd('ELASDARM'), safeReadCmd('ELASENCR'),
+    safeReadCmd('RIPADDR'), safeReadCmd('ISUBNET'), safeReadCmd('IGATEWAY'),
+  ]);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    panel: {
+      model: pnlcnf,
+      version: pnlver,
+      clock,
+      batteryVoltage: parseNumber(mainbat) / 10,
+    },
+    system: {
+      sstt,
+      batteryVoltage: parseNumber(mainbat) / 10,
+    },
+    gsm: {
+      status: gsmstt,
+      health: assessGsmHealth(gsmstt, grssi),
+      simPinInfo: secretInfo(simpin),
+    },
+    access: {
+      remoteAccess: {
+        enabled: !!parseNumber(uden),
+        remoteId: udrmtid,
+        codeInfo: secretInfo(udaccid),
+      },
+      installerPinInfo: secretInfo(instpin),
+      subInstallerPinInfo: secretInfo(subpin),
+    },
+    users: await readAuditUsers(),
+    zones: await readAuditZones(),
+    partitions: await readAuditPartitions(),
+    cloud: {
+      enabled: !!parseNumber(elasen),
+      encrypted: !!parseNumber(elasencr),
+      armEnabled: !!parseNumber(elasarm),
+      disarmEnabled: !!parseNumber(elasdarm),
+      passwordInfo: secretInfo(elaspass),
+    },
+    network: {
+      ip: ripaddr,
+      subnet,
+      gateway,
+    },
+  };
 }
 
 // ============================================
@@ -108,12 +353,17 @@ app.get('/api/system', async (req, res) => {
     res.json({
       panel: { model: pnlcnf, version: pnlver, serial: pnlser, label: syslbl, clock, language: lang },
       ip: { module: ipcver, address: ripaddr, configuredAddr: ipaddr, gateway: igateway, mac: imac },
-      gsm: { module: gsmver, imei: gimei, simSerial: gsimsn, status: gsmstt },
+      gsm: { module: gsmver, imei: maskIdentifier(gimei), simSerial: maskIdentifier(gsimsn), status: gsmstt },
       battery: { raw: mainbat, voltage: (parseInt(mainbat) / 10).toFixed(1) + 'V' },
       systemStatus: sstt,
       panelPort: await readCmd('PNLPORT'),
       panelSerial: await readCmd('PNLSER'),
-      remoteAccess: { code: await readCmd('UDACCID'), enabled: !!(parseInt(await readCmd('UDEN'))), remoteId: await readCmd('UDRMTID') },
+      remoteAccess: {
+        enabled: !!(parseInt(await readCmd('UDEN'))),
+        remoteId: await readCmd('UDRMTID'),
+        code: redacted(await readCmd('UDACCID')),
+        codeInfo: secretInfo(await readCmd('UDACCID')),
+      },
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -129,42 +379,53 @@ app.get('/api/zones', async (req, res) => {
   try {
     const zones = [];
     const maxZ = 50;
+    const includeUnused = req.query.includeUnused === '1' || req.query.all === '1';
     // Batch read types, labels, status in chunks of 8
-    const allTypes = [], allLabels = [], allStatus = [], allTech = [];
+    // Use a Map keyed by zone ID to avoid flat-array alignment issues
+    const zoneMap = new Map();
     for (let i = 0; i < maxZ; i += 8) {
       const min = i + 1, max = Math.min(i + 8, maxZ);
+      const expected = max - min + 1;
       const types = await batchRead('ZTYPE', min, max);
       const labels = await batchRead('ZLBL', min, max);
       const status = await batchRead('ZSTT', min, max);
-      allTypes.push(...types); allLabels.push(...labels); allStatus.push(...status);
-      // Tech needs per-zone query
-      for (let j = min; j <= max; j++) {
-        allTech.push(await readCmd(`ZLNKTYP${j}`));
+      for (let j = 0; j < expected; j++) {
+        const id = min + j;
+        const tech = await readCmd(`ZLNKTYP${id}`);
+        zoneMap.set(id, {
+          type: types[j],
+          label: labels[j],
+          status: status[j],
+          tech: tech || 'N',
+        });
       }
     }
 
-    for (let i = 0; i < maxZ; i++) {
-      const type = parseInt(allTypes[i]) || 0;
-      const tech = allTech[i] || 'N';
-      if (tech === 'N' && type === 0) continue;
+    for (let id = 1; id <= maxZ; id++) {
+      const d = zoneMap.get(id);
+      if (!d) continue;
+      const type = parseInt(d.type) || 0;
+      const tech = d.tech;
+      const status = normalizeZoneStatus(d.status || '', type, tech);
+      if (!includeUnused && status.notUsed) continue;
 
-      const rssiRaw = await readCmd(`ZRSSI${i+1}`);
+      const rssiRaw = tech === 'W' ? await readCmd(`ZRSSI${id}`) : '0';
       const rssiVal = parseInt(rssiRaw, 16);
-      const rri = tech === 'W' ? await readCmd(`ZRRI${i+1}`) : null;
-      const rssitim = tech === 'W' ? await readCmd(`ZRSSITIM${i+1}`) : null;
+      const rri = tech === 'W' ? await readCmd(`ZRRI${id}`) : null;
+      const rssitim = tech === 'W' ? await readCmd(`ZRSSITIM${id}`) : null;
       const zone = {
-        id: i + 1, label: (allLabels[i] || '').trim(), type, tech,
+        id, label: (d.label || '').trim(), type, tech,
         rssi: isNaN(rssiVal) ? 0 : rssiVal,
         lastTrigger: rri ? rri.trim() : null,
         lastCheckIn: rssitim ? rssitim.trim() : null,
-        status: parseZoneStatus(allStatus[i] || ''),
+        status,
       };
 
       if (tech === 'W') {
-        const prsns = await readCmd(`Z2WPRSNS${i+1}`);
-        const mwsns = await readCmd(`Z2WMWSNS${i+1}`);
-        const plscn = await readCmd(`Z2WPLSCN${i+1}`);
-        const enled = await readCmd(`Z2WENLED${i+1}`);
+        const prsns = await readCmd(`Z2WPRSNS${id}`);
+        const mwsns = await readCmd(`Z2WMWSNS${id}`);
+        const plscn = await readCmd(`Z2WPLSCN${id}`);
+        const enled = await readCmd(`Z2WENLED${id}`);
         zone.wireless = {
           pirSensitivity: parseInt(prsns), microwaveSensitivity: parseInt(mwsns),
           pulseCount: parseInt(plscn), ledEnabled: parseInt(enled),
@@ -188,7 +449,7 @@ app.get('/api/zones/:id', async (req, res) => {
     const zone = {
       id: i, label: label.trim(), type: parseInt(type), tech,
       rssi: parseInt(rssi, 16) || 0, lastReport: rri, config: conf,
-      force: parseInt(force), status: parseZoneStatus(status),
+      force: parseInt(force), status: normalizeZoneStatus(status, parseInt(type) || 0, tech),
     };
 
     if (tech === 'W') {
@@ -221,11 +482,11 @@ app.post('/api/zones/:id/bypass', async (req, res) => {
 
 app.post('/api/zones/:id/sensitivity', async (req, res) => {
   try {
-    const { pirSensitivity, microwaveSensitivity, shockSensitivity } = req.body;
-    const results = {};
-    if (pirSensitivity !== undefined) results.pir = await writeCmd(`Z2WPRSNS${req.params.id}`, pirSensitivity);
-    if (microwaveSensitivity !== undefined) results.mw = await writeCmd(`Z2WMWSNS${req.params.id}`, microwaveSensitivity);
-    if (shockSensitivity !== undefined) results.shock = await writeCmd(`Z2WSKSNS${req.params.id}`, shockSensitivity);
+    const results = await writeEntries(buildWriteEntries(req.body, {
+      pirSensitivity: 'Z2WPRSNS',
+      microwaveSensitivity: 'Z2WMWSNS',
+      shockSensitivity: 'Z2WSKSNS',
+    }, req.params.id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -233,16 +494,13 @@ app.post('/api/zones/:id/sensitivity', async (req, res) => {
 app.post('/api/zones/:id/config', async (req, res) => {
   try {
     const id = req.params.id;
-    const results = {};
     const cmds = {
       ledEnabled: 'Z2WENLED', vibrationEnabled: 'Z2WENVB', sabotageEnabled: 'Z2WENSAB',
       holdTime: 'Z2WHOLD', pulseCount: 'Z2WPLSCN', responseTime: 'Z2WRSPTM',
       walkTest: 'Z2WALKTS', label: 'ZLBL', type: 'ZTYPE', force: 'ZFORCE',
       abort: 'ZABORT', chimes: 'ZCHIMES',
     };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -251,9 +509,12 @@ app.post('/api/zones/:id/config', async (req, res) => {
 app.get('/api/partitions', async (req, res) => {
   try {
     const partitions = [];
+    const includeAll = req.query.includeAll === '1' || req.query.all === '1';
     for (let i = 1; i <= 4; i++) {
       const [label, status] = await sequential([readCmd(`PLBL*${i}`), readCmd(`PSTT*${i}`)]);
-      partitions.push({ id: i, label: label.trim(), status: parsePartitionStatus(status) });
+      const parsedStatus = parsePartitionStatus(status);
+      if (!includeAll && !parsedStatus.exist) continue;
+      partitions.push({ id: i, label: label.trim(), status: parsedStatus });
     }
     res.json(partitions);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -311,7 +572,15 @@ app.get('/api/users', async (req, res) => {
         readCmd(`ULBL*${i}`), readCmd(`ULVL*${i}`), readCmd(`UPIN*${i}`), readCmd(`UPROX*${i}`),
       ]);
       if (!label || label.trim() === '' || label.includes('N05')) continue;
-      users.push({ id: i, label: label.trim(), level: parseInt(level), pin, prox });
+      users.push({
+        id: i,
+        label: label.trim(),
+        level: parseInt(level),
+        pin: redacted(pin),
+        pinInfo: secretInfo(pin),
+        prox: /^0+$/.test(String(prox || '').trim()) ? '' : redacted(prox),
+        proxInfo: { ...secretInfo(prox), present: hasSecretValue(prox) && !/^0+$/.test(String(prox || '').trim()) },
+      });
     }
     res.json(users);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -368,7 +637,16 @@ app.get('/api/followme', async (req, res) => {
       events.emergency = !!parseInt(emrg); events.fire = !!parseInt(fire); events.panic = !!parseInt(panic);
       events.open = !!parseInt(open); events.technical = !!parseInt(tech); events.tamper = !!parseInt(tmpr);
       events.zoneBattery = !!parseInt(zbat);
-      entries.push({ id: i, label: label.trim(), phone: phone.trim(), email: mail.trim(), channel: parseInt(chnl), events });
+      entries.push({
+        id: i,
+        label: label.trim(),
+        phone: redacted(phone),
+        email: redacted(mail),
+        phoneInfo: secretInfo(phone),
+        emailInfo: secretInfo(mail),
+        channel: parseInt(chnl),
+        events,
+      });
     }
     res.json(entries);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -383,7 +661,17 @@ app.get('/api/monitoring', async (req, res) => {
         readCmd(`MSACCNT*${i}`), readCmd(`MSPHONE*${i}`), readCmd(`MSIPA*${i}`),
         readCmd(`MSIPP*${i}`), readCmd(`MSCHNL*${i}`), readCmd(`MSBCKP*${i}`),
       ]);
-      stations.push({ id: i, account: acct.trim(), phone: phone.trim(), ip: ip.trim(), port: parseInt(port), channel: parseInt(chnl), backup: parseInt(bckp) });
+      stations.push({
+        id: i,
+        account: redacted(acct),
+        phone: redacted(phone),
+        accountInfo: secretInfo(acct),
+        phoneInfo: secretInfo(phone),
+        ip: ip.trim(),
+        port: parseInt(port),
+        channel: parseInt(chnl),
+        backup: parseInt(bckp),
+      });
     }
     res.json(stations);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -408,7 +696,7 @@ app.get('/api/cloud', async (req, res) => {
       readCmd('ELASARM'), readCmd('ELASDARM'), readCmd('ELASDLY'), readCmd('ELASBCKP'), readCmd('ELASENCR'),
     ]);
     res.json({
-      enabled: !!parseInt(enabled), server: ip, port: parseInt(port), password: pass,
+      enabled: !!parseInt(enabled), server: ip, port: parseInt(port), password: redacted(pass), passwordInfo: secretInfo(pass),
       armEnabled: !!parseInt(arm), disarmEnabled: !!parseInt(darm),
       delay: parseInt(delay), backup: parseInt(backup), encrypted: !!parseInt(encrypt),
     });
@@ -424,26 +712,27 @@ app.get('/api/gsm', async (req, res) => {
       readCmd('SIMPIN'), readCmd('SIMEXP'), readCmd('GCALLID'),
       readCmd('GSPOLPR'), readCmd('GSPOLBKP'), readCmd('GSPOLSEC'),
     ]);
-    const rssiVal = parseInt(rssi) || 0;
-    // AT+CSQ scale: 0=-113dBm, 1=-111dBm, 2-30 linear, 31=-51dBm
-    const dbm = rssiVal === 0 ? -113 : rssiVal === 1 ? -111 : rssiVal >= 31 ? -51 : -113 + (rssiVal * 2);
-    const bars = rssiVal === 0 ? 0 : rssiVal <= 5 ? 1 : rssiVal <= 10 ? 2 : rssiVal <= 20 ? 3 : rssiVal <= 25 ? 4 : 5;
-    const quality = ['No signal','Very weak','Weak','Fair','Good','Excellent'][bars];
-    // GSMSTT flags
-    const sttFlags = {
-      registered: status[0] !== '-',
-      gprsAttached: status[1] !== '-',
-      simInserted: status[2] === 'Q' || status[2] !== '-',
-      networkAvail: status[3] !== '-',
-    };
+    const health = assessGsmHealth(status, rssi);
     res.json({
-      version: ver, imei, simSerial: sim,
-      signal: { rssi: rssiVal, dbm, bars, quality },
-      status, statusFlags: sttFlags,
+      version: ver, imei: maskIdentifier(imei), simSerial: maskIdentifier(sim),
+      signal: health.signal,
+      status, statusFlags: health.statusFlags, health,
       apn, provider: provider || '', networkLoss: parseInt(netlos),
-      simPin: simpin || '', simExpiry: parseInt(simexp), callerId: parseInt(callid),
+      simPin: redacted(simpin), simPinInfo: secretInfo(simpin), simExpiry: parseInt(simexp), callerId: parseInt(callid),
       polling: { primary: parseInt(polPr), backup: parseInt(polBk), seconds: parseInt(polSec) },
     });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// -- Open Issues Audit --
+app.get('/api/audit', async (req, res) => {
+  if (!ready) {
+    return res.status(503).json({ error: 'Panel not connected' });
+  }
+
+  try {
+    const snapshot = await readAuditSnapshot();
+    res.json(assessAuditSnapshot(snapshot));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -487,10 +776,66 @@ app.get('/api/arming-config', async (req, res) => {
 app.post('/api/raw', async (req, res) => {
   try {
     const { command, prog } = req.body;
-    if (prog) await sendCmd('PROG=1', true);
-    const r = await sendCmd(command, !!prog);
-    if (prog) try { await sendCmd('PROG=2', true); } catch(e) {}
-    res.json({ response: r });
+    const r = prog
+      ? await withProgrammingMode(() => sendCmd(command, true))
+      : await sendCmd(command);
+    const commandName = String(command || '').trim().replace(/[?=].*$/, '').toUpperCase();
+    res.json({ response: maskPanelResponse(commandName, r) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// -- Full Command Catalog --
+app.get('/api/commands', (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toUpperCase();
+    const category = String(req.query.category || '');
+    const kind = String(req.query.kind || '');
+    const support = String(req.query.support || '');
+    const rawLimit = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 10000) : null;
+
+    let commands = commandCatalog.commands;
+    if (q) {
+      commands = commands.filter((entry) => (
+        entry.command.includes(q) ||
+        entry.base.includes(q) ||
+        entry.category.toUpperCase().includes(q) ||
+        entry.description.toUpperCase().includes(q)
+      ));
+    }
+    if (category) commands = commands.filter((entry) => entry.category === category);
+    if (kind) commands = commands.filter((entry) => entry.kind === kind);
+    if (support === 'supported') commands = commands.filter((entry) => entry.support === true);
+    if (support === 'unsupported') commands = commands.filter((entry) => entry.support === false);
+    if (support === 'unknown') commands = commands.filter((entry) => entry.support === null);
+    if (support === 'readable') commands = commands.filter((entry) => entry.readable);
+
+    const returned = limit ? commands.slice(0, limit) : commands;
+    res.json({
+      meta: { ...commandCatalog.meta, filteredCount: commands.length, returnedCount: returned.length },
+      categories: commandCatalog.categories,
+      commands: returned,
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/commands/menu', (req, res) => {
+  try {
+    res.json(commandMenu);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/commands/read', async (req, res) => {
+  try {
+    const command = String(req.body.command || '').trim().toUpperCase().replace(/\?$/, '');
+    if (!/^[A-Z0-9_]+$/.test(command)) return res.status(400).json({ error: 'Invalid command name' });
+
+    const entry = commandByName.get(command);
+    if (!entry) return res.status(404).json({ error: 'Command is not in the catalog' });
+    if (!entry.readable) return res.status(400).json({ error: 'Command is marked action/write-only/sensitive', command });
+
+    const response = await sendCmd(`${command}?`);
+    res.json({ command, response: maskPanelResponse(command, response), support: entry.support });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -523,11 +868,9 @@ app.put('/api/setting', async (req, res) => {
 // -- Write: Users --
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = { label: 'ULBL', level: 'ULVL', pin: 'UPIN', prox: 'UPROX', partition: 'UPART', parent: 'UPARENT', outputAssign: 'UOASSIGN' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -535,11 +878,8 @@ app.put('/api/users/:id', async (req, res) => {
 // -- Write: Network --
 app.put('/api/network', async (req, res) => {
   try {
-    const results = {};
     const cmds = { ip: 'RIPADDR', subnet: 'ISUBNET', gateway: 'IGATEWAY', dns: 'IDNS', netbios: 'INETBIOS', dhcp: 'DHCP', smtp: 'ISMTP', smtpPort: 'ISMTPP', mail: 'IMAIL', username: 'IUSRNAM', password: 'IUSRPWD' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(cmd, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -547,11 +887,8 @@ app.put('/api/network', async (req, res) => {
 // -- Write: Cloud/ELAS --
 app.put('/api/cloud', async (req, res) => {
   try {
-    const results = {};
     const cmds = { enabled: 'ELASEN', server: 'ELASIPA', port: 'ELASIPP', password: 'ELASPASS', armEnabled: 'ELASARM', disarmEnabled: 'ELASDARM', delay: 'ELASDLY', backup: 'ELASBCKP', encrypted: 'ELASENCR' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(cmd, typeof req.body[key] === 'boolean' ? (req.body[key] ? 1 : 0) : req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -559,11 +896,8 @@ app.put('/api/cloud', async (req, res) => {
 // -- Write: GSM --
 app.put('/api/gsm', async (req, res) => {
   try {
-    const results = {};
     const cmds = { apn: 'GAPN', provider: 'GPRVDR', password: 'GPWD', center: 'GCENTER', name: 'GNAME', simPin: 'SIMPIN', callerId: 'GCALLID' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(cmd, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -571,7 +905,7 @@ app.put('/api/gsm', async (req, res) => {
 // -- Write: Follow Me --
 app.put('/api/followme/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = {
       label: 'FMLBL', phone: 'FMPHONE', email: 'FMMAIL', channel: 'FMCHNL',
       alarm: 'FMALRM', arm: 'FMARM', disarm: 'FMDARM', emergency: 'FMEMRG',
@@ -586,12 +920,7 @@ app.put('/api/followme/:id', async (req, res) => {
       restoreFire: 'FMRFIRE', restorePanic: 'FMRPNIC', restoreTech: 'FMRTECH',
       restoreTamper: 'FMRTMPR', restoreBattery: 'FMRZBAT',
     };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) {
-        const val = typeof req.body[key] === 'boolean' ? (req.body[key] ? 1 : 0) : req.body[key];
-        results[key] = await writeCmd(`${cmd}${id}`, val);
-      }
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -599,11 +928,9 @@ app.put('/api/followme/:id', async (req, res) => {
 // -- Write: Monitoring Station --
 app.put('/api/monitoring/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = { account: 'MSACCNT', phone: 'MSPHONE', ip: 'MSIPA', port: 'MSIPP', channel: 'MSCHNL', backup: 'MSBCKP', lineNum: 'MSLINUM', format: 'MSFRMT', enabled: 'MSEN', arm: 'MSARM', noArm: 'MSNOARM', urgent: 'MSURG', nonUrgent: 'MSNURG', tries: 'MSTRIES' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -611,7 +938,6 @@ app.put('/api/monitoring/:id', async (req, res) => {
 // -- Write: Arming Config --
 app.put('/api/arming-config', async (req, res) => {
   try {
-    const results = {};
     const cmds = {
       entryDelay: 'ENTRDLY', exitDelay: 'EXITDLY', bellTimeout: 'BELLTO', bellDelay: 'BELLDLY',
       swingerShutdown: 'SWINGER', quickArm: 'QARM', quickBypass: 'QBYP', bypassAlways: 'BYPALW',
@@ -622,12 +948,7 @@ app.put('/api/arming-config', async (req, res) => {
       finalLength: 'FINLNGHT', fireRepeat: 'FIREPT', phoneDelay: 'PHDLY',
       panicAlarm: 'PANCAL', speakerLevel: 'SPKRLVL', listenIn: 'LISTENIN',
     };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) {
-        const val = typeof req.body[key] === 'boolean' ? (req.body[key] ? 1 : 0) : req.body[key];
-        results[key] = await writeCmd(cmd, val);
-      }
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -635,11 +956,9 @@ app.put('/api/arming-config', async (req, res) => {
 // -- Write: Outputs --
 app.put('/api/outputs/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = { label: 'OLBL', type: 'OTYPE', pulse: 'OPULSE', active: 'OACTV', deactive: 'ODACTV', follow: 'OFLLOW', group: 'OGROP', partition: 'OPART', user: 'OUSER', zone: 'OZONE' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -647,8 +966,7 @@ app.put('/api/outputs/:id', async (req, res) => {
 // -- Write: Partitions --
 app.put('/api/partitions/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
-    if (req.body.label !== undefined) results.label = await writeCmd(`PLBL${id}`, req.body.label);
+    const results = await writeEntries(buildWriteEntries(req.body, { label: 'PLBL' }, req.params.id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -656,11 +974,9 @@ app.put('/api/partitions/:id', async (req, res) => {
 // -- Write: Keypads --
 app.put('/api/keypads/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = { label: 'KPLABEL', function: 'KPFUNC', melody: 'KPMELODY', mode: 'KPMODE', autoStay: 'KPAUTOST', bypassCode: 'KPBYPCOD', emergency: 'KPEMRGCY', wakeup: 'KPWAKEUP' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -668,11 +984,9 @@ app.put('/api/keypads/:id', async (req, res) => {
 // -- Write: Keyfobs --
 app.put('/api/keyfobs/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = { label: 'FBLABEL', parent: 'FBPARENT', button1Type: 'FB1TYP', button2Type: 'FB2TYP', button3Type: 'FB3TYP', button4Type: 'FB4TYP', button3Output: 'FB3OUT', button4Output: 'FB4OUT', pin: 'FB2WPIN', panic: 'FB2WPANC' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -710,11 +1024,9 @@ app.get('/api/sirens', async (req, res) => {
 
 app.put('/api/sirens/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = { type: 'STYPE', soundAlarm: 'SSNDAL', soundSquawk: 'SSNDSQ', strobe: 'SSTR', strobeBlock: 'SSTRBLK', strobeSquawk: 'SSTRSQ', partition: 'SPART', speakerLevel: 'SPKRLVL', noiseLevel: 'RPNOISEL' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -738,11 +1050,9 @@ app.get('/api/vacations', async (req, res) => {
 
 app.put('/api/vacations/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = { enabled: 'VACEN', label: 'VACLABEL', start: 'VACDATS', end: 'VACDATE', partition: 'VACPART' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, typeof req.body[key] === 'boolean' ? (req.body[key] ? 1 : 0) : req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds, id));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -778,21 +1088,23 @@ app.get('/api/schedules/:id', async (req, res) => {
 
 app.put('/api/schedules/:id', async (req, res) => {
   try {
-    const id = req.params.id, results = {};
+    const id = req.params.id;
     const cmds = { label: 'SCLABEL', type: 'SCTYPE', enabled: 'SCON', armMode: 'SCARMMD', output: 'SCUO', mask: 'SCMASK', vacationFollow: 'SCVACF' };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(`${cmd}${id}`, typeof req.body[key] === 'boolean' ? (req.body[key] ? 1 : 0) : req.body[key]);
-    }
-    // Day/time writes
+    const entries = buildWriteEntries(req.body, cmds, id);
     const dayMap = { sun: 'SU', mon: 'MO', tue: 'TU', wed: 'WE', thu: 'TH', fri: 'FR', sat: 'SA' };
     if (req.body.days) {
       for (const [name, code] of Object.entries(dayMap)) {
         if (req.body.days[name]) {
-          if (req.body.days[name].start !== undefined) results[`${name}Start`] = await writeCmd(`SC${code}S${id}`, req.body.days[name].start);
-          if (req.body.days[name].end !== undefined) results[`${name}End`] = await writeCmd(`SC${code}E${id}`, req.body.days[name].end);
+          if (req.body.days[name].start !== undefined) {
+            entries.push({ key: `${name}Start`, command: `SC${code}S${id}`, value: normalizeWriteValue(req.body.days[name].start) });
+          }
+          if (req.body.days[name].end !== undefined) {
+            entries.push({ key: `${name}End`, command: `SC${code}E${id}`, value: normalizeWriteValue(req.body.days[name].end) });
+          }
         }
       }
     }
+    const results = await writeEntries(entries);
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -849,7 +1161,6 @@ app.get('/api/repeaters', async (req, res) => {
 // -- Write: System settings --
 app.put('/api/system', async (req, res) => {
   try {
-    const results = {};
     const cmds = {
       label: 'SYSLBL', clock: 'CLOCK', language: 'LANG', timezone: 'TIMEZONE',
       installerPin: 'INSTPIN', subPin: 'SUBPIN', remotePhoneCode: 'RMTPHCD',
@@ -857,9 +1168,7 @@ app.put('/api/system', async (req, res) => {
       testMode: 'TESTMODE', jammingAlarm: 'JAMAL', jammingTime: 'JMTIME',
       pbx: 'PBX', rings: 'RINGS', redial: 'REDIAL',
     };
-    for (const [key, cmd] of Object.entries(cmds)) {
-      if (req.body[key] !== undefined) results[key] = await writeCmd(cmd, req.body[key]);
-    }
+    const results = await writeEntries(buildWriteEntries(req.body, cmds));
     res.json({ success: true, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -944,7 +1253,10 @@ app.get('/api/all-settings', async (req, res) => {
       'UDACCID','UDEN','UDRMTID','VIEWHS','VIEWKO','VMREOCUR','WRNARM',
     ];
     for (const cmd of cmds) {
-      try { r[cmd] = await readCmd(cmd); } catch(e) { r[cmd] = 'ERR'; }
+      try {
+        const value = await readCmd(cmd);
+        r[cmd] = isSensitiveCommand(cmd) ? redacted(value) : value;
+      } catch(e) { r[cmd] = 'ERR'; }
     }
     res.json(r);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -957,14 +1269,14 @@ app.get('/api/network-full', async (req, res) => {
       ip: await readCmd('RIPADDR'), configuredIp: await readCmd('IPADDR'),
       subnet: await readCmd('ISUBNET'), gateway: await readCmd('IGATEWAY'),
       mac: await readCmd('IMAC'), dns: await readCmd('IDNS'),
-      netbios: await readCmd('INETBIOS'), mail: await readCmd('IMAIL'),
-      username: await readCmd('IUSRNAM'), password: await readCmd('IUSRPWD'),
+      netbios: await readCmd('INETBIOS'), mail: redacted(await readCmd('IMAIL')),
+      username: redacted(await readCmd('IUSRNAM')), password: redacted(await readCmd('IUSRPWD')),
       smtp: await readCmd('ISMTP'), smtpPort: await readCmd('ISMTPP'),
       ntp: await readCmd('INTP'), ntpPort: await readCmd('INTPP'), ntpProto: await readCmd('INTPPROT'),
       keepAliveCnt: await readCmd('IKACNT'), keepAliveRes: await readCmd('IKARES'),
       messageQueue: await readCmd('IMQ'), name: await readCmd('INAME'),
       ipcStatus: await readCmd('IPCSTT'), ipcVersion: await readCmd('IPCVER'),
-      phone: await readCmd('IPHONE'),
+      phone: redacted(await readCmd('IPHONE')),
       pollingPrimary: await readCmd('IPPOLPR'), pollingBackup: await readCmd('IPPOLBKP'),
       pollingSeconds: await readCmd('IPPOLSEC'),
     });
@@ -975,20 +1287,20 @@ app.get('/api/network-full', async (req, res) => {
 app.get('/api/gsm-full', async (req, res) => {
   try {
     res.json({
-      version: await readCmd('GSMVER'), imei: await readCmd('GIMEI'),
-      simSerial: await readCmd('GSIMSN'), rssi: parseInt(await readCmd('GRSSI')),
+      version: await readCmd('GSMVER'), imei: maskIdentifier(await readCmd('GIMEI')),
+      simSerial: maskIdentifier(await readCmd('GSIMSN')), rssi: parseInt(await readCmd('GRSSI')),
       status: await readCmd('GSMSTT'), apn: await readCmd('GAPN'),
       provider: await readCmd('GPRVDR'), center: await readCmd('GCENTER'),
       callerId: await readCmd('GCALLID'), incomingCall: await readCmd('GINCAL'),
-      mail: await readCmd('GMAIL'), name: await readCmd('GNAME'),
-      networkLoss: await readCmd('GNETLOS'), password: await readCmd('GPWD'),
+      mail: redacted(await readCmd('GMAIL')), name: await readCmd('GNAME'),
+      networkLoss: await readCmd('GNETLOS'), password: redacted(await readCmd('GPWD')),
       getrssi: await readCmd('GETRSSI'),
       serverIp: await readCmd('GSIP'), serverPort: await readCmd('GSIPP'),
-      serverName: await readCmd('GSNAME'), serverPwd: await readCmd('GSPWD'),
-      dupPhone: await readCmd('GTDUPPHN'),
+      serverName: await readCmd('GSNAME'), serverPwd: redacted(await readCmd('GSPWD')),
+      dupPhone: redacted(await readCmd('GTDUPPHN')),
       pollingPrimary: await readCmd('GSPOLPR'), pollingBackup: await readCmd('GSPOLBKP'),
       pollingSeconds: await readCmd('GSPOLSEC'),
-      simPin: await readCmd('SIMPIN'), simExpiry: await readCmd('SIMEXP'),
+      simPin: redacted(await readCmd('SIMPIN')), simExpiry: await readCmd('SIMEXP'),
       simPpc: await readCmd('SIMPPC'), simPpp: await readCmd('SIMPPP'), simPpt: await readCmd('SIMPPT'),
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1029,11 +1341,11 @@ app.get('/api/followme/:id/full', async (req, res) => {
   try {
     const i = req.params.id;
     const r = {
-      id: parseInt(i), label: await readCmd(`FMLBL*${i}`), phone: await readCmd(`FMPHONE*${i}`),
-      mail: await readCmd(`FMMAIL*${i}`), channel: await readCmd(`FMCHNL*${i}`),
+      id: parseInt(i), label: await readCmd(`FMLBL*${i}`), phone: redacted(await readCmd(`FMPHONE*${i}`)),
+      mail: redacted(await readCmd(`FMMAIL*${i}`)), channel: await readCmd(`FMCHNL*${i}`),
       parent: await readCmd(`FMPARENT*${i}`), partition: await readCmd(`FMPART*${i}`),
       period: await readCmd(`FMPERIOD*${i}`), phoneEnable: await readCmd(`FMPHNE*${i}`),
-      backup: await readCmd(`FMBCKP*${i}`), code: await readCmd(`FMCODE*${i}`),
+      backup: await readCmd(`FMBCKP*${i}`), code: redacted(await readCmd(`FMCODE*${i}`)),
       listen: await readCmd(`FMLISTN*${i}`), co: await readCmd(`FMCO*${i}`),
       dc: await readCmd(`FMDC*${i}`), rac: await readCmd(`FMRAC*${i}`),
       events: {
@@ -1089,10 +1401,10 @@ app.get('/api/monitoring/:id/full', async (req, res) => {
   try {
     const i = req.params.id;
     res.json({
-      id: parseInt(i), account: await readCmd(`MSACCNT*${i}`), phone: await readCmd(`MSPHONE*${i}`),
+      id: parseInt(i), account: redacted(await readCmd(`MSACCNT*${i}`)), phone: redacted(await readCmd(`MSPHONE*${i}`)),
       ip: await readCmd(`MSIPA*${i}`), port: await readCmd(`MSIPP*${i}`),
       channel: await readCmd(`MSCHNL*${i}`), backup: await readCmd(`MSBCKP*${i}`),
-      keyBin: await readCmd(`MSKEYBIN*${i}`), lineNum: await readCmd(`MSLINUM*${i}`),
+      keyBin: redacted(await readCmd(`MSKEYBIN*${i}`)), lineNum: await readCmd(`MSLINUM*${i}`),
       recordNum: await readCmd(`MSRECNUM*${i}`),
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1136,16 +1448,66 @@ function parsePartitionStatus(s) {
 }
 
 // ============================================
-// Web UI — served from separate file, or inline fallback
+// Panel Config
+// ============================================
+app.get('/api/config', (req, res) => {
+  const config = loadConfig();
+  res.json({
+    panelIp: config.panelIp || DEFAULTS.panelIp,
+    panelPort: config.panelPort || DEFAULTS.panelPort,
+    panelPasswordSet: !!(config.panelPassword || DEFAULTS.panelPassword),
+    panelId: config.panelId || DEFAULTS.panelId,
+    panelType: config.panelType || DEFAULTS.panelType,
+    host: config.host || DEFAULTS.host,
+    supportedPanelTypes,
+    connected: ready,
+  });
+});
+
+app.put('/api/config', (req, res) => {
+  const { panelIp, panelPort, panelPassword, panelId, panelType } = req.body;
+  const config = {};
+  if (panelIp) config.panelIp = panelIp;
+  if (panelPort) config.panelPort = parseInt(panelPort);
+  if (panelPassword) config.panelPassword = parseInt(panelPassword);
+  if (panelId) config.panelId = panelId;
+  if (panelType) config.panelType = panelType;
+  try {
+    saveConfig(config);
+    // Disconnect existing panel and reconnect with new config
+    if (panel) {
+      ready = false;
+      tcp = null;
+      try { panel.disconnect(); } catch (e) {}
+    }
+    connectPanel();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ============================================
+// Web UI
 // ============================================
 const fs = require('fs');
 const path = require('path');
+const binaryDir = path.dirname(process.execPath);
+const uiCandidates = [
+  path.join(__dirname, 'ui.html'),
+  path.join(binaryDir, 'ui.html'),
+];
+if (process.env.RISCO_DEBUG_UI_LOOKUP === '1') {
+  console.log(
+    'UI lookup:',
+    uiCandidates.map((candidate) => `${candidate}:${fs.existsSync(candidate)}`).join(', ')
+  );
+}
 app.get('/', (req, res) => {
-  const uiPath = path.join(__dirname, 'ui.html');
-  if (fs.existsSync(uiPath)) {
+  const uiPath = uiCandidates.find((candidate) => fs.existsSync(candidate));
+  if (uiPath) {
     res.sendFile(uiPath);
   } else {
-    // Fallback: redirect to GitHub Pages hosted UI
     res.redirect('https://yogevkriger.github.io/risco-control/?server=' + encodeURIComponent('http://' + req.hostname + ':' + PORT));
   }
 });
@@ -1154,9 +1516,9 @@ app.get('/', (req, res) => {
 // Start
 // ============================================
 connectPanel();
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   console.log(`\n===========================================`);
   console.log(`  RISCO CONTROL CENTER`);
-  console.log(`  http://localhost:${PORT}`);
+  console.log(`  http://${HOST}:${PORT}`);
   console.log(`===========================================\n`);
 });

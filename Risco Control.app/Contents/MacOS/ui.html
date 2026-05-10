@@ -3,61 +3,107 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0e1a;color:#c8d0e0;font-size:13px;padding:16px;max-width:1400px;margin:0 auto}
-  h1{color:#38bdf8;font-size:20px;margin-bottom:2px}
-  h1 small{color:#475569;font-size:12px;font-weight:400;margin-left:8px}
-  .sec-hdr{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:12px 0 6px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;border-bottom:1px solid #1e293b}
+  body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0e1a;color:#c8d0e0;font-size:15px;padding:20px;max-width:1400px;margin:0 auto}
+  h1{color:#38bdf8;font-size:24px;margin-bottom:4px}
+  h1 small{color:#475569;font-size:14px;font-weight:400;margin-left:8px}
+  .sec-hdr{color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:1px;padding:14px 0 8px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;border-bottom:1px solid #1e293b}
   .sec-hdr:hover{color:#94a3b8}
-  .sec-hdr .arr{font-size:8px;transition:transform .2s}
+  .sec-hdr .arr{font-size:10px;transition:transform .2s}
   .sec-hdr .arr.open{transform:rotate(90deg)}
   .sec-body{overflow:hidden}.sec-body.closed{display:none}
-  .g3{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;padding:8px 0}
-  .c{background:#131a2b;border-radius:6px;padding:10px 12px;border:1px solid #1e293b}
+  .g3{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;padding:10px 0}
+  .c{background:#131a2b;border-radius:6px;padding:12px 14px;border:1px solid #1e293b}
   .c.bad{border-color:#dc2626}.c.good{border-color:#16a34a}
-  .name{font-size:14px;font-weight:600;color:#e2e8f0}
-  .dim{color:#475569;font-size:11px;margin-top:2px}
+  .audit-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;padding:10px 0}
+  .audit-card{background:#131a2b;border:1px solid #1e293b;border-radius:6px;padding:12px 14px}
+  .audit-num{font-size:24px;font-weight:800;color:#e2e8f0;line-height:1}
+  .audit-list{display:grid;gap:8px;padding:4px 0 10px}
+  .audit-item{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;align-items:start;background:#101827;border:1px solid #1e293b;border-radius:6px;padding:10px 12px}
+  .audit-item.critical,.audit-item.issue{border-color:#7f1d1d}.audit-item.warning{border-color:#713f12}.audit-item.info{border-color:#1e3a8a}
+  .audit-title{font-weight:700;color:#e2e8f0}.audit-detail{color:#94a3b8;font-size:13px;margin-top:2px}.audit-action{color:#c8d0e0;font-size:13px;margin-top:6px}.audit-refs{color:#64748b;font-size:12px;margin-top:4px;font-family:monospace}
+  .name{font-size:16px;font-weight:600;color:#e2e8f0}
+  .dim{color:#64748b;font-size:13px;margin-top:2px}
   .row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center}
-  .t{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-right:2px}
+  .t{display:inline-block;padding:2px 8px;border-radius:3px;font-size:12px;font-weight:600;margin-right:3px}
   .t-ok{background:#0f3d1f;color:#6ee7a0}.t-warn{background:#422006;color:#fbbf24}
   .t-err{background:#450a0a;color:#f87171}.t-info{background:#0c2d4d;color:#60a5fa}.t-dim{background:#1e293b;color:#64748b}
   .bars{display:inline-flex;align-items:flex-end;gap:1px;margin-right:4px;vertical-align:middle}
   .bar{width:3px;border-radius:1px}.bar.on{background:#22c55e}.bar.off{background:#1e293b}
-  button{padding:3px 10px;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:11px}
+  button{padding:5px 12px;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:13px}
   button:active{opacity:.7}
   .br{background:#dc2626;color:#fff}.bg{background:#16a34a;color:#fff}.by{background:#ca8a04;color:#fff}
   .bb{background:#2563eb;color:#fff}.bp{background:#6d28d9;color:#fff}.bgr{background:#475569;color:#fff}
-  select,input[type=text],input[type=number],input[type=password]{background:#1e293b;color:#c8d0e0;border:1px solid #334155;border-radius:3px;padding:3px 6px;font-size:12px}
-  input[type=text]{width:160px}input[type=number]{width:70px}input[type=password]{width:120px}
-  .kv{display:grid;grid-template-columns:120px 1fr;gap:2px 8px;font-size:12px}
+  select,input[type=text],input[type=number],input[type=password]{background:#1e293b;color:#c8d0e0;border:1px solid #334155;border-radius:4px;padding:5px 8px;font-size:14px}
+  input[type=text]{width:180px}input[type=number]{width:80px}input[type=password]{width:140px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;font-size:14px}
   .kv .k{color:#475569}.kv .v{color:#c8d0e0}
   /* Tables */
   table{width:100%;border-collapse:collapse;margin:6px 0}
-  td{padding:5px 8px;border-bottom:1px solid #1a2236;vertical-align:middle;font-size:12px}
+  td{padding:7px 10px;border-bottom:1px solid #1a2236;vertical-align:middle;font-size:14px}
   tr:hover{background:#131a2b}
-  .tid{color:#475569;width:30px;text-align:right;font-size:11px}
-  .tname{font-weight:600;color:#e2e8f0;max-width:180px}
-  .tinfo{color:#475569;font-size:11px}
+  .tid{color:#64748b;width:32px;text-align:right;font-size:13px}
+  .tname{font-weight:600;color:#e2e8f0;max-width:200px;font-size:15px}
+  .tinfo{color:#64748b;font-size:13px}
   /* Edit panel */
-  .edit-panel{background:#0f1629;border:1px solid #1e3a5f;border-radius:6px;padding:12px;margin:6px 0}
-  .edit-panel label{display:inline-block;color:#64748b;font-size:11px;width:130px;text-align:right;margin-right:8px}
-  .edit-row{margin:4px 0;display:flex;align-items:center;flex-wrap:wrap;gap:4px}
-  .edit-panel .edit-title{color:#38bdf8;font-size:12px;font-weight:600;margin-bottom:8px}
-  .cb{display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:11px;color:#94a3b8}
+  .edit-panel{background:#0f1629;border:1px solid #1e3a5f;border-radius:6px;padding:14px;margin:8px 0}
+  .edit-panel label{display:inline-block;color:#64748b;font-size:13px;width:140px;text-align:right;margin-right:8px}
+  .edit-row{margin:6px 0;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+  .edit-panel .edit-title{color:#38bdf8;font-size:14px;font-weight:600;margin-bottom:10px}
+  .cb{display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:13px;color:#94a3b8}
   .cb input[type=checkbox]{accent-color:#2563eb}
   /* Raw */
   .raw-row{display:flex;gap:6px;padding:8px 0}
-  .raw-row input{flex:1;padding:6px 8px;background:#131a2b;color:#e2e8f0;border:1px solid #1e293b;border-radius:4px;font-family:monospace;font-size:12px}
-  pre{padding:6px;background:#0a0e1a;border:1px solid #1e293b;border-radius:4px;font-size:11px;color:#38bdf8;max-height:150px;overflow:auto;margin-top:4px}
-  .loader{color:#334155;font-size:12px;padding:4px 0}
+  .raw-row input{flex:1;padding:8px 10px;background:#131a2b;color:#e2e8f0;border:1px solid #1e293b;border-radius:4px;font-family:monospace;font-size:14px}
+  .cmd-tools{display:grid;grid-template-columns:minmax(220px,1fr) 150px 130px 120px;gap:8px;padding:10px 0;align-items:center}
+  .cmd-tools input{width:100%;font-family:monospace}
+  .cmd-tools select{width:100%}
+  .cmd-stats{color:#64748b;font-size:13px;margin:0 0 8px}
+  .cmd-menu{display:grid;grid-template-columns:210px 260px minmax(0,1fr);gap:10px;min-height:430px}
+  .cmd-pane{border:1px solid #1e293b;border-radius:6px;overflow:auto;max-height:430px;background:#0d1424}
+  .cmd-tab{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid #1a2236;cursor:pointer;align-items:center}
+  .cmd-tab:hover,.cmd-tab.sel{background:#131a2b}
+  .cmd-tab .cmd-count{color:#64748b;font-size:12px;white-space:nowrap}
+  .cmd-detail{border:1px solid #1e293b;border-radius:6px;background:#0d1424;min-width:0;max-height:430px;overflow:auto}
+  .cmd-detail-head{padding:10px;border-bottom:1px solid #1a2236}
+  .cmd-detail-title{font-family:monospace;color:#e2e8f0;font-weight:700;font-size:16px}
+  .cmd-list{overflow:hidden}
+  .cmd-row{display:grid;grid-template-columns:150px 120px 1fr 170px;gap:10px;align-items:center;padding:7px 10px;border-bottom:1px solid #1a2236}
+  .cmd-row:last-child{border-bottom:none}
+  .cmd-name{font-family:monospace;color:#e2e8f0;font-weight:700}
+  .cmd-meta{color:#64748b;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cmd-actions{display:flex;gap:6px;justify-content:flex-end}
+  @media(max-width:900px){.cmd-tools{grid-template-columns:1fr 1fr}.cmd-menu{grid-template-columns:1fr}.cmd-pane,.cmd-detail{max-height:300px}.cmd-row{grid-template-columns:1fr}.cmd-actions{justify-content:flex-start}.audit-item{grid-template-columns:1fr}}
+  pre{padding:8px;background:#0a0e1a;border:1px solid #1e293b;border-radius:4px;font-size:13px;color:#38bdf8;max-height:150px;overflow:auto;margin-top:4px}
+  .loader{color:#475569;font-size:14px;padding:6px 0}
   .toast{position:fixed;top:16px;right:16px;background:#16a34a;color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;z-index:999;display:none}
   .toast.err{background:#dc2626}
 </style></head><body>
 
 <div style="display:flex;justify-content:space-between;align-items:center">
 <h1>Risco LightSYS<small id="clock"></small></h1>
-<button class="bgr" onclick="localStorage.removeItem('risco-server');location.reload()" style="font-size:11px">Disconnect</button>
+<div style="display:flex;gap:6px;align-items:center">
+  <button class="bgr" onclick="showSettings()" style="font-size:13px;padding:5px 10px" title="Panel Settings">Settings</button>
+  <button class="bgr" onclick="localStorage.removeItem('risco-server');location.reload()" style="font-size:11px">Disconnect</button>
+</div>
 </div>
 <div class="toast" id="toast"></div>
+
+<div id="settings-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center">
+  <div class="c" style="max-width:460px;width:90%;padding:24px">
+    <div class="name" style="margin-bottom:4px;font-size:18px">Panel Connection Settings</div>
+    <div class="dim" style="margin-bottom:16px">Configure your Risco alarm panel connection</div>
+    <div class="edit-row"><label style="width:120px;display:inline-block;color:#64748b;font-size:13px;text-align:right;margin-right:8px">Panel IP</label><input type="text" id="cfg-ip" placeholder="192.168.1.100" style="width:200px"></div>
+    <div class="edit-row"><label style="width:120px;display:inline-block;color:#64748b;font-size:13px;text-align:right;margin-right:8px">Port</label><input type="number" id="cfg-port" placeholder="1000" style="width:100px"></div>
+    <div class="edit-row"><label style="width:120px;display:inline-block;color:#64748b;font-size:13px;text-align:right;margin-right:8px">Password</label><input type="password" id="cfg-pass" placeholder="5678" style="width:140px"></div>
+    <div class="edit-row"><label style="width:120px;display:inline-block;color:#64748b;font-size:13px;text-align:right;margin-right:8px">Panel ID</label><input type="text" id="cfg-id" placeholder="0001" style="width:100px"></div>
+    <div class="edit-row"><label style="width:120px;display:inline-block;color:#64748b;font-size:13px;text-align:right;margin-right:8px">Panel Type</label><select id="cfg-type"></select></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button class="bgr" onclick="hideSettings()">Cancel</button>
+      <button class="bg" onclick="saveSettings()" id="cfg-save-btn">Save &amp; Reconnect</button>
+    </div>
+    <div id="cfg-status" style="margin-top:8px;font-size:12px"></div>
+  </div>
+</div>
 
 <div id="connect" style="display:none">
   <div class="c" style="max-width:500px;margin:40px auto;text-align:center">
@@ -72,6 +118,7 @@
 </div>
 
 <div id="sys"></div>
+<div id="audit"></div>
 <div id="parts"></div>
 <div id="zones"></div>
 <div id="outs"></div>
@@ -90,6 +137,7 @@
 <div id="events"></div>
 <div id="firmware"></div>
 <div id="actions"></div>
+<div id="cmdcatalog"></div>
 <div id="raw"></div>
 
 <script>
@@ -141,6 +189,47 @@ function sel(id,opts,cur){return `<select id="${id}">${opts.map(([v,l])=>`<optio
 function cb(id,label,checked){return `<label class="cb"><input type="checkbox" id="${id}"${checked?' checked':''}>${label}</label>`}
 function editBtn(onclick){return ` <button class="bgr" onclick="${onclick}">Edit</button>`}
 function saveBtn(onclick){return `<button class="bg" onclick="${onclick}">Save</button> `}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function sevTag(sev){const c=sev==='critical'||sev==='issue'?'err':sev==='warning'?'warn':sev==='info'?'info':'ok';return tag((sev||'ok').toUpperCase(),c)}
+
+async function loadAudit(){
+  $('#audit').innerHTML='<div class="loader">Running audit...</div>';
+  try {
+    const audit = await api('audit');
+    renderAudit(audit);
+  } catch(e) {
+    sec('#audit','Audit',`<div class="c dim">Audit unavailable: ${esc(e.message)}</div>`);
+  }
+}
+
+function renderAudit(audit){
+  if(!audit || audit.error){
+    sec('#audit','Audit',`<div class="c dim">${esc(audit&&audit.error?audit.error:'Audit unavailable')}</div>`);
+    return;
+  }
+  const s=audit.summary||{};
+  const counts=s.counts||{};
+  const findings=audit.findings||[];
+  const open=findings.filter(f=>f.severity!=='info');
+  const watch=findings.filter(f=>f.severity==='info');
+  const rows=findings.map(f=>{
+    const refs=(f.refs||[]).slice(0,8).join(' ');
+    return `<div class="audit-item ${esc(f.severity)}">`+
+      `<div>${sevTag(f.severity)}</div>`+
+      `<div><div class="audit-title">${esc(f.title)}</div>`+
+      `<div class="audit-detail">${esc(f.category)} / ${esc(f.code)} - ${esc(f.detail)}</div>`+
+      `<div class="audit-action">${esc(f.action)}</div>`+
+      (refs?`<div class="audit-refs">${esc(refs)}</div>`:'')+
+      `</div></div>`;
+  }).join('') || '<div class="c good"><div class="name">No open issues</div><div class="dim">Current audit found no active findings.</div></div>';
+  const body=`<div class="audit-top">`+
+    `<div class="audit-card"><div class="audit-num">${s.openCount||0}</div><div class="dim">open issues</div></div>`+
+    `<div class="audit-card"><div class="audit-num">${watch.length}</div><div class="dim">watch items</div></div>`+
+    `<div class="audit-card"><div class="row">${tag('CRIT '+(counts.critical||0),'err')}${tag('ISSUE '+(counts.issue||0),'err')}${tag('WARN '+(counts.warning||0),'warn')}${tag('INFO '+(counts.info||0),'info')}</div><div class="dim">Generated ${esc(audit.generatedAt||'')}</div></div>`+
+    `<div class="audit-card"><div class="name">${esc((audit.panel&&audit.panel.model)||'Panel')}</div><div class="dim">${esc((audit.panel&&audit.panel.version)||'')}</div></div>`+
+    `</div><div class="audit-list">${rows}</div>`;
+  sec('#audit',`Audit (${open.length} open${watch.length?`, ${watch.length} watch`:''})`,body,true);
+}
 
 async function doAction(p){const r=await post(p);toast(r.success?'Done':'Failed: '+JSON.stringify(r),!r.success);setTimeout(()=>location.reload(),500)}
 async function doSens(id,v){const r=await post('zones/'+id+'/sensitivity',{pirSensitivity:v});toast(r.success?'Saved':'Failed',!r.success)}
@@ -150,6 +239,7 @@ async function savePut(endpoint, fields) {
   fields.forEach(([key, elId, type]) => {
     const el = document.getElementById(elId);
     if (!el) return;
+    if (type === 'secret' && !el.value) return;
     if (type === 'bool') body[key] = el.checked;
     else if (type === 'int') body[key] = parseInt(el.value) || 0;
     else body[key] = el.value;
@@ -168,7 +258,7 @@ async function load(){
     $('#sys').innerHTML=`<div class="loader">Waiting for panel... (${attempt+1}/10)</div>`;
     await new Promise(r => setTimeout(r, 3000));
   }
-  if (!sys.panel || !sys.panel.model) { $('#sys').innerHTML='<div class="loader" style="color:#f87171">Panel not ready. Refresh in 30 seconds.</div>'; return; }
+  if (!sys.panel || !sys.panel.model) { $('#sys').innerHTML='<div class="loader" style="color:#f87171">Panel not ready — check <a href="#" onclick="showSettings();return false" style="color:#38bdf8">Settings</a> to configure the panel IP address.</div>'; return; }
   $('#clock').textContent = ' - ' + sys.panel.clock;
   sec('#sys','System','<div class="g3">'+
     `<div class="c"><div class="name">${sys.panel.model}</div><div class="dim">${sys.panel.version}</div>`+
@@ -184,6 +274,7 @@ async function load(){
     `<div class="c"><div class="name">IP Module</div><div class="dim">${sys.ip.address} | ${sys.ip.mac}</div></div>`+
     `<div class="c"><div class="name">GSM</div><div class="dim">${sys.gsm.imei}</div></div>`+
   '</div>');
+  loadAudit();
 
   // ========== PARTITIONS ==========
   const parts = await api('partitions');
@@ -222,17 +313,17 @@ async function load(){
     zh+=`</td><td>`;
     if(z.wireless){
       zh+=`<span class="dim">PIR:</span><select onchange="doSens(${z.id},+this.value)" style="width:40px">`;
-      for(let v=0;v<=5;v++)zh+=`<option${v===z.wireless.pirSensitivity?' selected':''}>${v}</option>`;
+      for(let v=1;v<=3;v++)zh+=`<option${v===z.wireless.pirSensitivity?' selected':''}>${v}</option>`;
       zh+=`</select> <span class="dim">MW:${z.wireless.microwaveSensitivity}</span> `;
     }
-    zh+=`<button class="bp" onclick="doAction('zones/${z.id}/bypass')">BYP</button>`;
+    zh+=`<button class="bp" onclick="doAction('zones/${z.id}/bypass')">BYPASS</button>`;
     zh+=` <button class="bgr" onclick="toggleEl('ze-${z.id}')">...</button>`;
     zh+=`</td></tr>`;
     // Edit row
     zh+=`<tr id="ze-${z.id}" style="display:none"><td colspan="5"><div class="edit-panel"><div class="edit-title">Zone ${z.id} Config</div>`;
     zh+=`<div class="edit-row"><label>Label</label>${inp('zl-'+z.id,z.label)}</div>`;
     if(z.wireless){
-      zh+=`<div class="edit-row"><label>PIR Sensitivity</label>${inp('zp-'+z.id,z.wireless.pirSensitivity,'number','50px')} <label>MW Sensitivity</label>${inp('zm-'+z.id,z.wireless.microwaveSensitivity,'number','50px')}</div>`;
+      zh+=`<div class="edit-row"><label>PIR Sensitivity (1-3)</label><input type="number" id="zp-${z.id}" value="${z.wireless.pirSensitivity}" min="1" max="3" style="width:50px"> <label>MW Sensitivity (1-3)</label><input type="number" id="zm-${z.id}" value="${z.wireless.microwaveSensitivity}" min="1" max="3" style="width:50px"></div>`;
       zh+=`<div class="edit-row"><label>Pulse Count</label>${inp('zpc-'+z.id,z.wireless.pulseCount,'number','50px')} <label>LED</label>${sel('zled-'+z.id,[['0','Off'],['1','On']],z.wireless.ledEnabled)}</div>`;
     }
     zh+=`<div class="edit-row">${saveBtn(`saveZone(${z.id},${z.tech==='W'})`)} <button class="br" onclick="doAction('zones/${z.id}/bypass')">Toggle Bypass</button></div>`;
@@ -259,11 +350,12 @@ async function load(){
   const users = await api('users');
   let uh='<table>';
   users.forEach(u=>{
-    uh+=`<tr><td class="tid">${u.id}</td><td class="tname">${u.label}</td><td class="dim">Level:${u.level}</td>`;
+    const pinTag = u.pinInfo&&u.pinInfo.weak ? tag('WEAK PIN','err') : (u.pinInfo&&u.pinInfo.present ? tag('PIN SET','dim') : tag('NO PIN','warn'));
+    uh+=`<tr><td class="tid">${u.id}</td><td class="tname">${u.label}</td><td class="dim">Level:${u.level}</td><td>${pinTag}</td>`;
     uh+=`<td><button class="bgr" onclick="toggleEl('ue-${u.id}')">Edit</button></td></tr>`;
-    uh+=`<tr id="ue-${u.id}" style="display:none"><td colspan="4"><div class="edit-panel"><div class="edit-title">User ${u.id}</div>`;
+    uh+=`<tr id="ue-${u.id}" style="display:none"><td colspan="5"><div class="edit-panel"><div class="edit-title">User ${u.id}</div>`;
     uh+=`<div class="edit-row"><label>Label</label>${inp('ul-'+u.id,u.label)} <label>Level</label>${inp('ulv-'+u.id,u.level,'number','60px')} <label>PIN</label>${inp('up-'+u.id,'','password','80px')}</div>`;
-    uh+=`<div class="edit-row">${saveBtn(`savePut('users/${u.id}',[['label','ul-${u.id}'],['level','ulv-${u.id}','int'],['pin','up-${u.id}']])`)}</div>`;
+    uh+=`<div class="edit-row">${saveBtn(`savePut('users/${u.id}',[['label','ul-${u.id}'],['level','ulv-${u.id}','int'],['pin','up-${u.id}','secret']])`)}</div>`;
     uh+=`</div></td></tr>`;
   });
   sec('#users','Users',uh+'</table>');
@@ -290,7 +382,7 @@ async function load(){
     fh+=`<tr id="fe-${f.id}" style="display:none"><td colspan="4"><div class="edit-panel">`;
     fh+=`<div class="edit-row"><label>Label</label>${inp('fl-'+f.id,f.label)} <label>B1 Type</label>${inp('fb1-'+f.id,f.button1Type,'number','50px')} <label>B2 Type</label>${inp('fb2-'+f.id,f.button2Type,'number','50px')}</div>`;
     fh+=`<div class="edit-row"><label>PIN</label>${inp('fp-'+f.id,'','password','80px')} <label>Panic</label>${sel('fpnc-'+f.id,[['0','Off'],['1','On']],f.panic||0)}</div>`;
-    fh+=`<div class="edit-row">${saveBtn(`savePut('keyfobs/${f.id}',[['label','fl-${f.id}'],['button1Type','fb1-${f.id}','int'],['button2Type','fb2-${f.id}','int'],['pin','fp-${f.id}'],['panic','fpnc-${f.id}','int']])`)}</div>`;
+    fh+=`<div class="edit-row">${saveBtn(`savePut('keyfobs/${f.id}',[['label','fl-${f.id}'],['button1Type','fb1-${f.id}','int'],['button2Type','fb2-${f.id}','int'],['pin','fp-${f.id}','secret'],['panic','fpnc-${f.id}','int']])`)}</div>`;
     fh+=`</div></td></tr>`;
   });
   sec('#keyfobs','Keyfobs',fh+'</table>',false);
@@ -322,7 +414,7 @@ async function load(){
     fmh+=`<td class="dim">${f.phone||'--'} ${f.email||''}</td><td>${tags.join('')}</td>`;
     fmh+=`<td><button class="bgr" onclick="toggleEl('fme-${f.id}')">Edit</button></td></tr>`;
     fmh+=`<tr id="fme-${f.id}" style="display:none"><td colspan="5"><div class="edit-panel"><div class="edit-title">Follow Me ${f.id}</div>`;
-    fmh+=`<div class="edit-row"><label>Label</label>${inp('fml-'+f.id,f.label)} <label>Phone</label>${inp('fmp-'+f.id,f.phone)} <label>Email</label>${inp('fme2-'+f.id,f.email,'text','200px')}</div>`;
+    fmh+=`<div class="edit-row"><label>Label</label>${inp('fml-'+f.id,f.label)} <label>Phone</label>${inp('fmp-'+f.id,'')} <label>Email</label>${inp('fme2-'+f.id,'','text','200px')}</div>`;
     fmh+=`<div class="edit-row"><label>Channel</label>${sel('fmc-'+f.id,[['0','None'],['1','Voice'],['2','SMS'],['3','Email']],f.channel)}</div>`;
     fmh+=`<div class="edit-row" style="margin-top:6px">`;
     fmh+=cb('fma-'+f.id,'Alarm',ev.alarm)+cb('fmf-'+f.id,'Fire',ev.fire)+cb('fmpn-'+f.id,'Panic',ev.panic);
@@ -342,9 +434,9 @@ async function load(){
     msh+=`<tr><td class="tid">${m.id}</td><td class="dim">Acct:${m.account} Ph:${m.phone||'--'} IP:${m.ip||'--'}:${m.port} Ch:${m.channel}</td>`;
     msh+=`<td><button class="bgr" onclick="toggleEl('mse-${m.id}')">Edit</button></td></tr>`;
     msh+=`<tr id="mse-${m.id}" style="display:none"><td colspan="3"><div class="edit-panel">`;
-    msh+=`<div class="edit-row"><label>Account</label>${inp('msa-'+m.id,m.account)} <label>Phone</label>${inp('msp-'+m.id,m.phone)}</div>`;
+    msh+=`<div class="edit-row"><label>Account</label>${inp('msa-'+m.id,'')} <label>Phone</label>${inp('msp-'+m.id,'')}</div>`;
     msh+=`<div class="edit-row"><label>IP</label>${inp('msi-'+m.id,m.ip)} <label>Port</label>${inp('mspt-'+m.id,m.port,'number','60px')} <label>Channel</label>${inp('msc-'+m.id,m.channel,'number','50px')}</div>`;
-    msh+=`<div class="edit-row">${saveBtn(`savePut('monitoring/${m.id}',[['account','msa-${m.id}'],['phone','msp-${m.id}'],['ip','msi-${m.id}'],['port','mspt-${m.id}','int'],['channel','msc-${m.id}','int']])`)}</div>`;
+    msh+=`<div class="edit-row">${saveBtn(`savePut('monitoring/${m.id}',[['account','msa-${m.id}','secret'],['phone','msp-${m.id}','secret'],['ip','msi-${m.id}'],['port','mspt-${m.id}','int'],['channel','msc-${m.id}','int']])`)}</div>`;
     msh+=`</div></td></tr>`;
   });
   sec('#monitoring','Monitoring Stations',msh+'</table>',false);
@@ -357,13 +449,15 @@ async function load(){
   ])}`+editBtn(`toggleEl('cle')`)+
   `<div id="cle" class="edit-panel" style="display:none"><div class="edit-title">Cloud Settings</div>`+
   `<div class="edit-row"><label>Enabled</label>${sel('clen',[['0','No'],['1','Yes']],cl.enabled?1:0)} <label>Server</label>${inp('clsrv',cl.server)} <label>Port</label>${inp('clpt',cl.port,'number','60px')}</div>`+
-  `<div class="edit-row"><label>Password</label>${inp('clpw',cl.password,'password')} <label>Arm</label>${sel('clar',[['0','No'],['1','Yes']],cl.armEnabled?1:0)} <label>Disarm</label>${sel('clda',[['0','No'],['1','Yes']],cl.disarmEnabled?1:0)}</div>`+
-  `<div class="edit-row">${saveBtn("savePut('cloud',[['enabled','clen','int'],['server','clsrv'],['port','clpt','int'],['password','clpw'],['armEnabled','clar','int'],['disarmEnabled','clda','int']])")}</div>`+
+  `<div class="edit-row"><label>Password</label>${inp('clpw','','password')} <label>Arm</label>${sel('clar',[['0','No'],['1','Yes']],cl.armEnabled?1:0)} <label>Disarm</label>${sel('clda',[['0','No'],['1','Yes']],cl.disarmEnabled?1:0)}</div>`+
+  `<div class="edit-row">${saveBtn("savePut('cloud',[['enabled','clen','int'],['server','clsrv'],['port','clpt','int'],['password','clpw','secret'],['armEnabled','clar','int'],['disarmEnabled','clda','int']])")}</div>`+
   `</div></div>`,false);
 
   // ========== GSM ==========
   const gsm = await api('gsm');
   const sig=gsm.signal||{};
+  const health=gsm.health||{};
+  const st=gsm.statusFlags||{};
   sec('#gsm-sec','GSM Module','<div class="g3">'+
     `<div class="c"><div class="name">Signal ${bars(sig.rssi,31)}</div>`+
     `<div style="font-size:18px;font-weight:700;color:${sig.bars>=3?'#22c55e':sig.bars>=2?'#eab308':'#ef4444'};margin:4px 0">${sig.quality||'?'}</div>`+
@@ -372,10 +466,10 @@ async function load(){
     editBtn(`toggleEl('gsme')`)+
     `<div id="gsme" class="edit-panel" style="display:none">`+
     `<div class="edit-row"><label>APN</label>${inp('gapn',gsm.apn)} <label>Provider</label>${inp('gprov',gsm.provider)}</div>`+
-    `<div class="edit-row"><label>SIM PIN</label>${inp('gspin',gsm.simPin,'password','80px')}</div>`+
-    `<div class="edit-row">${saveBtn("savePut('gsm',[['apn','gapn'],['provider','gprov'],['simPin','gspin']])")}</div>`+
+    `<div class="edit-row"><label>SIM PIN</label>${inp('gspin','','password','80px')}</div>`+
+    `<div class="edit-row">${saveBtn("savePut('gsm',[['apn','gapn'],['provider','gprov'],['simPin','gspin','secret']])")}</div>`+
     `</div></div>`+
-    `<div class="c">${kv([['Registered',(gsm.statusFlags||{}).registered?tag('YES','ok'):tag('NO','err')],['SIM',(gsm.statusFlags||{}).simInserted?tag('YES','ok'):tag('NO','err')],['Net Loss',gsm.networkLoss+'min']])}</div>`+
+    `<div class="c">${kv([['State',health.summary||gsm.status],['Registered',st.registered?tag('YES','ok'):tag('NO','err')],['GPRS',st.gprsAttached?tag('YES','ok'):tag('NO','err')],['SIM',st.simInserted?tag('YES','ok'):tag('NO','err')],['Net Loss',gsm.networkLoss+'min']])}</div>`+
   '</div>',false);
 
   // ========== NETWORK ==========
@@ -449,8 +543,129 @@ async function load(){
     `<button class="by" onclick="doAction('reset-tech')">Reset Tech Troubles</button>`+
   `</div>`,false);
 
+  // ========== COMMAND CATALOG ==========
+  await loadCommandCatalog();
+
   // ========== RAW ==========
   sec('#raw','Raw Command',`<div class="raw-row"><input id="cmd" placeholder="Z2WPRSNS9? or CLOCK?"><button class="bb" onclick="rawCmd(false)">SEND</button><button class="by" onclick="rawCmd(true)">PROG</button></div><pre id="rawout"></pre>`);
+}
+
+let COMMAND_MENU = null;
+let CMD_CATEGORY = '';
+let CMD_BASE = '';
+
+async function loadCommandCatalog() {
+  try {
+    COMMAND_MENU = await api('commands/menu');
+    CMD_CATEGORY = (COMMAND_MENU.categories && COMMAND_MENU.categories[0] && COMMAND_MENU.categories[0].name) || '';
+    sec('#cmdcatalog','Commands',`<div class="cmd-tools">`+
+      `<input id="cmd-q" placeholder="Search menu" oninput="renderCommandMenu()">`+
+      `<select id="cmd-support" onchange="renderCommandMenu()"><option value="">All support</option><option value="supported">Supported</option><option value="unsupported">Unsupported</option><option value="unknown">Unknown</option><option value="readable">Readable</option></select>`+
+      `<select id="cmd-kind" onchange="renderCommandMenu()"><option value="">All kinds</option><option value="setting">Setting</option><option value="status">Status</option><option value="sensitive">Sensitive</option><option value="action">Action</option><option value="write">Write</option><option value="unknown">Unknown</option></select>`+
+      `<button class="bgr" onclick="clearCommandMenuFilters()">Clear</button>`+
+      `</div><div id="cmd-stats" class="cmd-stats"></div><div class="cmd-menu"><div id="cmd-cats" class="cmd-pane"></div><div id="cmd-bases" class="cmd-pane"></div><div id="cmd-detail" class="cmd-detail"></div></div><pre id="cmd-readout"></pre>`,false);
+    renderCommandMenu();
+  } catch(e) {
+    sec('#cmdcatalog','Commands',`<div class="c dim">Catalog unavailable: ${esc(e.message)}</div>`,false);
+  }
+}
+
+function clearCommandMenuFilters() {
+  $('#cmd-q').value = '';
+  $('#cmd-support').value = '';
+  $('#cmd-kind').value = '';
+  renderCommandMenu();
+}
+
+function commandMatchesMenu(c) {
+  const q = ($('#cmd-q')?.value || '').trim().toUpperCase();
+  const support = $('#cmd-support')?.value || '';
+  const kind = $('#cmd-kind')?.value || '';
+  if (q && !(c.command.includes(q) || c.base.includes(q) || c.category.toUpperCase().includes(q) || (c.description || '').toUpperCase().includes(q))) return false;
+  if (kind && c.kind !== kind) return false;
+  if (support === 'supported' && c.support !== true) return false;
+  if (support === 'unsupported' && c.support !== false) return false;
+  if (support === 'unknown' && c.support !== null) return false;
+  if (support === 'readable' && !c.readable) return false;
+  return true;
+}
+
+function filteredCommandMenu() {
+  return (COMMAND_MENU.categories || []).map(cat => {
+    const bases = cat.bases.map(base => {
+      const commands = base.commands.filter(commandMatchesMenu);
+      return {...base, commands, count: commands.length};
+    }).filter(base => base.commands.length);
+    const count = bases.reduce((n, base) => n + base.commands.length, 0);
+    return {...cat, bases, count, baseCount: bases.length};
+  }).filter(cat => cat.bases.length);
+}
+
+function selectCommandCategory(name) {
+  CMD_CATEGORY = name;
+  CMD_BASE = '';
+  renderCommandMenu();
+}
+
+function selectCommandBase(base) {
+  CMD_BASE = base;
+  renderCommandMenu();
+}
+
+function commandBadges(c) {
+  const sup = c.support === true ? tag('OK','ok') : c.support === false ? tag('N/A','dim') : tag('UNK','warn');
+  const mode = c.sensitive ? tag('SECRET','warn') : c.action ? tag('ACTION','err') : c.readable ? tag('READ','info') : tag((c.kind || 'CMD').toUpperCase(),'dim');
+  return sup + mode;
+}
+
+function renderCommandMenu() {
+  if (!COMMAND_MENU) return;
+  const cats = filteredCommandMenu();
+  if (!cats.length) {
+    $('#cmd-stats').textContent = `0/${COMMAND_MENU.meta.commandCount} commands`;
+    $('#cmd-cats').innerHTML = '<div class="cmd-tab"><span class="dim">No groups</span></div>';
+    $('#cmd-bases').innerHTML = '';
+    $('#cmd-detail').innerHTML = '';
+    return;
+  }
+  if (!cats.some(c => c.name === CMD_CATEGORY)) CMD_CATEGORY = cats[0].name;
+  const cat = cats.find(c => c.name === CMD_CATEGORY);
+  if (!CMD_BASE || !cat.bases.some(b => b.base === CMD_BASE)) CMD_BASE = cat.bases[0].base;
+  const base = cat.bases.find(b => b.base === CMD_BASE);
+  const total = cats.reduce((n, c) => n + c.count, 0);
+  const baseTotal = cats.reduce((n, c) => n + c.baseCount, 0);
+
+  $('#cmd-stats').textContent = `${total}/${COMMAND_MENU.meta.commandCount} commands | ${baseTotal} families | ${COMMAND_MENU.meta.liveSupportedCount} live-supported`;
+  $('#cmd-cats').innerHTML = cats.map(c => `<div class="cmd-tab ${c.name===CMD_CATEGORY?'sel':''}" onclick="selectCommandCategory('${esc(c.name)}')"><span>${esc(c.name)}</span><span class="cmd-count">${c.baseCount} / ${c.count}</span></div>`).join('');
+  $('#cmd-bases').innerHTML = cat.bases.map(b => `<div class="cmd-tab ${b.base===CMD_BASE?'sel':''}" onclick="selectCommandBase('${esc(b.base)}')"><span class="cmd-name">${esc(b.base)}</span><span class="cmd-count">${b.commands.length}</span></div>`).join('');
+
+  const rows = base.commands.slice(0, 500);
+  $('#cmd-detail').innerHTML = `<div class="cmd-detail-head"><div class="cmd-detail-title">${esc(base.base)}</div><div class="cmd-meta">${esc(cat.name)} | ${base.commands.length} command variants | ${base.readableCount} readable | ${base.actionCount} actions | ${base.sensitiveCount} sensitive</div></div>`+
+    `<div class="cmd-list">`+
+    (rows.map(c => {
+      const meta = [c.traffic, c.valueType, c.legality, c.format].filter(Boolean).join(' | ');
+      return `<div class="cmd-row">`+
+        `<div class="cmd-name">${esc(c.command)}</div>`+
+        `<div>${commandBadges(c)}</div>`+
+        `<div><div class="cmd-meta">${esc(c.inheritedFrom ? 'inherits '+c.inheritedFrom : c.source)}</div><div class="cmd-meta">${esc(meta || c.description || c.source)}</div></div>`+
+        `<div class="cmd-actions"><button class="bgr" onclick="fillCatalogCommand('${esc(c.command)}')">Raw</button>${c.readable?`<button class="bb" onclick="readCatalogCommand('${esc(c.command)}')">Read</button>`:''}</div>`+
+        `</div>`;
+    }).join('') || '<div class="cmd-row"><div class="dim">No commands</div></div>')+
+    (base.commands.length > rows.length ? `<div class="cmd-row"><div class="dim">${base.commands.length - rows.length} more hidden by view limit</div></div>` : '')+
+    `</div>`;
+}
+
+function fillCatalogCommand(command) {
+  const input = document.getElementById('cmd');
+  if (input) {
+    input.value = command + '?';
+    input.focus();
+  }
+}
+
+async function readCatalogCommand(command) {
+  const r = await post('commands/read', { command });
+  $('#cmd-readout').textContent = JSON.stringify(r, null, 2);
 }
 
 // ========== SAVE HELPERS ==========
@@ -473,7 +688,7 @@ async function saveZone(id, wireless) {
 
 async function saveFollowMe(id) {
   await savePut('followme/'+id, [
-    ['label','fml-'+id],['phone','fmp-'+id],['email','fme2-'+id],['channel','fmc-'+id,'int'],
+    ['label','fml-'+id],['phone','fmp-'+id,'secret'],['email','fme2-'+id,'secret'],['channel','fmc-'+id,'int'],
     ['alarm','fma-'+id,'bool'],['fire','fmf-'+id,'bool'],['panic','fmpn-'+id,'bool'],
     ['emergency','fmem-'+id,'bool'],['open','fmop-'+id,'bool'],['arm','fmar-'+id,'bool'],
     ['disarm','fmda-'+id,'bool'],['technical','fmtc-'+id,'bool'],['tamper','fmtm-'+id,'bool'],
@@ -495,6 +710,55 @@ async function rawCmd(prog){
   const r=await post('raw',{command:cmd,prog});
   document.getElementById('rawout').textContent=JSON.stringify(r,null,2);
 }
+
+// Settings panel
+async function showSettings() {
+  const ov = $('#settings-overlay');
+  ov.style.display = 'flex';
+  $('#cfg-status').textContent = '';
+  try {
+    const cfg = await api('config');
+    $('#cfg-ip').value = cfg.panelIp || '';
+    $('#cfg-port').value = cfg.panelPort || '';
+    $('#cfg-pass').value = '';
+    $('#cfg-pass').placeholder = cfg.panelPasswordSet ? 'saved' : 'not set';
+    $('#cfg-id').value = cfg.panelId || '';
+    const sel = $('#cfg-type');
+    sel.innerHTML = (cfg.supportedPanelTypes || ['LightSys']).map(t =>
+      `<option value="${t}"${t === cfg.panelType ? ' selected' : ''}>${t}</option>`
+    ).join('');
+  } catch(e) {
+    $('#cfg-status').innerHTML = '<span style="color:#f87171">Could not load config: ' + e.message + '</span>';
+  }
+}
+function hideSettings() { $('#settings-overlay').style.display = 'none'; }
+async function saveSettings() {
+  const btn = $('#cfg-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Connecting...';
+  $('#cfg-status').innerHTML = '<span style="color:#64748b">Saving and reconnecting to panel...</span>';
+  try {
+    const body = {
+      panelIp: $('#cfg-ip').value,
+      panelPort: parseInt($('#cfg-port').value) || 1000,
+      panelId: $('#cfg-id').value,
+      panelType: $('#cfg-type').value,
+    };
+    if ($('#cfg-pass').value) body.panelPassword = parseInt($('#cfg-pass').value);
+    await put('config', body);
+    $('#cfg-status').innerHTML = '<span style="color:#6ee7a0">Saved! Reconnecting to panel...</span>';
+    // Wait a bit then reload to pick up new connection
+    setTimeout(() => { hideSettings(); location.reload(); }, 3000);
+  } catch(e) {
+    $('#cfg-status').innerHTML = '<span style="color:#f87171">Failed: ' + e.message + '</span>';
+    btn.disabled = false;
+    btn.textContent = 'Save & Reconnect';
+  }
+}
+// Close settings on overlay click
+document.getElementById('settings-overlay').addEventListener('click', function(e) {
+  if (e.target === this) hideSettings();
+});
 
 // Boot: check if we have a server URL, otherwise show connect screen
 (async () => {

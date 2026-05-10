@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "doctor": "node doctor.js"
+    "doctor": "node doctor.js",
+    "test": "node --test panel-runtime.test.js gsm-health.test.js command-catalog.test.js audit.test.js"
   },
   "keywords": ["risco", "alarm", "lightsys", "prosys", "security", "home-automation"],
   "author": "",

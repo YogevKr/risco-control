@@ -1,8 +1,8 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY package.json ./
-RUN npm install --production
-COPY server.js ui.html ./
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY server.js ui.html panel-runtime.js gsm-health.js command-catalog.js command-catalog.json audit.js ./
 EXPOSE 3580
 ENV RISCO_IP=192.168.40.199 \
     RISCO_PORT=1000 \
