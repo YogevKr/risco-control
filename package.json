@@ -1,7 +1,7 @@
 {
   "name": "risco-control",
   "version": "1.0.0",
-  "description": "Full Risco alarm panel control — replaces CS.exe Configuration Software",
+  "description": "Full Risco alarm panel control",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

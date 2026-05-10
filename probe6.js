@@ -1,7 +1,7 @@
 const RiscoTCPPanel = require('risco-lan-bridge');
 
 const Options = {
-  Panel_IP: '192.168.40.199',
+  Panel_IP: process.env.RISCO_IP || '127.0.0.1',
   Panel_Port: 1000,
   Panel_Password: 5678,
   Panel_Id: '0001',
@@ -21,7 +21,7 @@ panel.on('SystemInitComplete', async () => {
   // Enter prog mode
   await tcp.SendCommand('PROG=1', true);
 
-  // All Z2W commands found in CS.exe
+  // All known Z2W commands
   const z2wCmds = [
     'Z2WPRSNS',   // PIR Sensitivity
     'Z2WSKSNS',   // Shock Sensitivity
@@ -38,7 +38,7 @@ panel.on('SystemInitComplete', async () => {
     'Z2WRSWEN',   // RS WEN
   ];
 
-  // Also all other zone commands from CS.exe we haven't tried
+  // Also all other zone commands we haven't tried
   const otherCmds = [
     'ZABORT', 'ZALOC', 'ZBYPAS', 'ZCHIMES', 'ZCONF',
     'ZCRC', 'ZFORCE', 'ZIN1TERM', 'ZIN2TERM', 'ZLBL',
@@ -67,8 +67,8 @@ panel.on('SystemInitComplete', async () => {
     }
   }
 
-  // Test other zone commands we found in CS.exe
-  console.log('\n--- Other CS.exe zone commands on Zone 9 ---\n');
+  // Test other known zone commands
+  console.log('\n--- Other zone commands on Zone 9 ---\n');
 
   for (const cmd of otherCmds) {
     for (const fmt of [`${cmd}${9}?`, `${cmd}*${9}?`]) {

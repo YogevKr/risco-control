@@ -853,7 +853,7 @@ app.get('/api/events', async (req, res) => {
 });
 
 // ============================================
-// WRITE ENDPOINTS — Full CS.exe coverage
+// WRITE ENDPOINTS — full panel coverage
 // ============================================
 
 // -- Generic write helper for any setting --

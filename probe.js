@@ -1,7 +1,7 @@
 const RiscoTCPPanel = require('risco-lan-bridge');
 
 const Options = {
-  Panel_IP: '192.168.40.199',
+  Panel_IP: process.env.RISCO_IP || '127.0.0.1',
   Panel_Port: 1000,
   Panel_Password: 5678,
   Panel_Id: '0001',
@@ -31,7 +31,7 @@ panel.on('SystemInitComplete', async () => {
     `ZLNKTYP${ZONE}?`,
   ];
 
-  // Candidate commands to probe - things CS.exe might use for zone config
+  // Candidate commands to probe for zone config
   const probeCmds = [
     // Zone parameters / sensitivity
     `ZPARAM*${ZONE}?`,

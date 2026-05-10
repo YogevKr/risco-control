@@ -5,7 +5,7 @@ services:
     ports:
       - "3580:3580"
     environment:
-      - RISCO_IP=192.168.40.199
+      - RISCO_IP=${RISCO_IP:-127.0.0.1}
       - RISCO_PORT=1000
       - RISCO_PASSWORD=5678
       - RISCO_PANEL_ID=0001

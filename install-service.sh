@@ -19,7 +19,7 @@ cat > "$PLIST" << EOF
     <key>EnvironmentVariables</key>
     <dict>
         <key>RISCO_IP</key>
-        <string>${RISCO_IP:-192.168.40.199}</string>
+        <string>${RISCO_IP:-127.0.0.1}</string>
         <key>PORT</key>
         <string>3580</string>
     </dict>

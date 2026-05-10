@@ -1,7 +1,7 @@
 const RiscoTCPPanel = require('risco-lan-bridge');
 
 const Options = {
-  Panel_IP: '192.168.40.199',
+  Panel_IP: process.env.RISCO_IP || '127.0.0.1',
   Panel_Port: 1000,
   Panel_Password: 5678,
   Panel_Id: '0001',
@@ -67,7 +67,7 @@ panel.on('SystemInitComplete', async () => {
     } catch(e) {}
   }
 
-  // Approach 3: CS.exe might use totally different command prefix letters
+  // Approach 3: zone config might use different command prefix letters
   // We tried Z* exhaustively, but what about other prefixes for zone config?
   console.log('\n--- Non-Z zone config commands ---');
   const altCmds = [
@@ -120,7 +120,7 @@ panel.on('SystemInitComplete', async () => {
     // Try comma-separated zone,param
     `ZONE=${ZONE},0?`, `ZONE=${ZONE},1?`, `ZONE=${ZONE},2?`,
     `ZONE=${ZONE}?`, `ZONE${ZONE}?`,
-    // Try EEPROM/flash read (CS.exe likely reads config memory)
+    // Try EEPROM/flash read paths
     'EEPROM?', 'FLASH?', 'NVRAM?', 'SRAM?',
     'EE0?', 'FL0?', 'NV0?',
   ];

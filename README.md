@@ -1,6 +1,6 @@
 # Risco Control Panel
 
-Full web-based replacement for the Risco Configuration Software (CS.exe). Connects directly to your Risco alarm panel over LAN — no cloud required.
+Full web-based Risco alarm panel control. Connects directly to your Risco alarm panel over LAN — no cloud required.
 
 Supports: LightSYS, LightSYS 2, ProSYS Plus, Agility, WiComm, GT Plus.
 
@@ -22,7 +22,7 @@ Open http://localhost:3580
 
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
-| `RISCO_IP` | `192.168.40.199` | Panel IP address |
+| `RISCO_IP` | `127.0.0.1` | Panel IP address |
 | `RISCO_PORT` | `1000` | Panel TCP port |
 | `RISCO_PASSWORD` | `5678` | Remote access code |
 | `RISCO_PANEL_ID` | `0001` | Panel ID |
@@ -47,10 +47,10 @@ docker compose up -d
 
 ## Features
 
-- 5,987-command catalog from CS.exe XML plus live panel support status
+- 5,987-command catalog plus live panel support status
 - Real-time zone status, battery, signal strength
 - Arm/Disarm/Stay from browser
-- PIR/MW/Shock sensitivity control (Z2W commands — discovered by reverse engineering CS.exe)
+- PIR/MW/Shock sensitivity control (Z2W commands)
 - Full system diagnostics (`npm run doctor`)
 - Edit all settings: users, zones, outputs, follow-me, cloud, network, GSM, schedules, and more
 - Signal bars for wireless zones and GSM

@@ -42,7 +42,7 @@ test('getPanelRuntime returns documented defaults', () => {
     const runtime = getPanelRuntime();
 
     assert.equal(runtime.panelType, 'LightSys');
-    assert.equal(runtime.panelOptions.Panel_IP, '192.168.40.199');
+    assert.equal(runtime.panelOptions.Panel_IP, '127.0.0.1');
     assert.equal(runtime.panelOptions.Panel_Port, 1000);
     assert.equal(runtime.panelOptions.Panel_Password, 5678);
     assert.equal(runtime.panelOptions.Panel_Id, '0001');

@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULTS = Object.freeze({
-  panelIp: '192.168.40.199',
+  panelIp: '127.0.0.1',
   panelPort: 1000,
   panelPassword: 5678,
   panelId: '0001',

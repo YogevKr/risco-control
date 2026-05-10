@@ -1,7 +1,7 @@
 const RiscoTCPPanel = require('risco-lan-bridge');
 
 const Options = {
-  Panel_IP: '192.168.40.199',
+  Panel_IP: process.env.RISCO_IP || '127.0.0.1',
   Panel_Port: 1000,
   Panel_Password: 5678,
   Panel_Id: '0001',
@@ -38,7 +38,7 @@ panel.on('SystemInitComplete', async () => {
     `ZPARAM${ZONE}?`,
     `ZSENS${ZONE}?`,
     `ZWCFG${ZONE}?`,
-    // Risco CS.exe likely uses numbered parameter access
+    // Risco panels may use numbered parameter access
     // Format might be like ZONE<param_id>=<zone_id>,<value>
     `ZCNF${ZONE}?`,
     `ZFLAG${ZONE}?`,

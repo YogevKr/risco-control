@@ -2,9 +2,9 @@ const net = require('net');
 const fs = require('fs');
 
 // Proxy listens locally, forwards to the real panel
-const PANEL_IP = '192.168.40.199';
+const PANEL_IP = process.env.PANEL_IP || '127.0.0.1';
 const PANEL_PORT = 1000;
-const LISTEN_PORT = 1000;  // CS.exe connects here
+const LISTEN_PORT = 1000;  // local client connects here
 const LOG_FILE = './capture.log';
 
 const logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
@@ -23,27 +23,27 @@ function log(direction, data) {
 }
 
 const server = net.createServer((clientSocket) => {
-  console.log(`\n>>> CS.exe connected from ${clientSocket.remoteAddress}:${clientSocket.remotePort}`);
+  console.log(`\n>>> Client connected from ${clientSocket.remoteAddress}:${clientSocket.remotePort}`);
   logStream.write(`\n=== NEW CONNECTION from ${clientSocket.remoteAddress}:${clientSocket.remotePort} ===\n`);
 
   const panelSocket = net.createConnection({ host: PANEL_IP, port: PANEL_PORT }, () => {
     console.log(`>>> Connected to panel at ${PANEL_IP}:${PANEL_PORT}`);
   });
 
-  // CS.exe -> Panel
+  // Client -> Panel
   clientSocket.on('data', (data) => {
-    log('CS.exe >>> PANEL', data);
+    log('CLIENT >>> PANEL', data);
     panelSocket.write(data);
   });
 
-  // Panel -> CS.exe
+  // Panel -> Client
   panelSocket.on('data', (data) => {
-    log('PANEL >>> CS.exe', data);
+    log('PANEL >>> CLIENT', data);
     clientSocket.write(data);
   });
 
   clientSocket.on('end', () => {
-    console.log('>>> CS.exe disconnected');
+    console.log('>>> Client disconnected');
     panelSocket.end();
   });
 
@@ -53,7 +53,7 @@ const server = net.createServer((clientSocket) => {
   });
 
   clientSocket.on('error', (err) => {
-    console.error('CS.exe socket error:', err.message);
+    console.error('Client socket error:', err.message);
     panelSocket.destroy();
   });
 
@@ -74,12 +74,12 @@ server.listen(LISTEN_PORT, '0.0.0.0', () => {
   console.log(`  Forwarding to ${PANEL_IP}:${PANEL_PORT}`);
   console.log(`  Logging to ${LOG_FILE}`);
   console.log('');
-  console.log('  In CS.exe, set panel IP to one of:');
+  console.log('  In your local client, set panel IP to one of:');
   ips.forEach(ip => console.log(`    ${ip}`));
   console.log('');
   console.log('  Then change sensitivity and we capture the command!');
   console.log('===========================================');
-  console.log('  Waiting for CS.exe connection...\n');
+  console.log('  Waiting for client connection...\n');
 });
 
 server.on('error', (err) => {

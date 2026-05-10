@@ -2,7 +2,7 @@ const RiscoTCPPanel = require('risco-lan-bridge');
 const fs = require('fs');
 
 const Options = {
-  Panel_IP: '192.168.40.199',
+  Panel_IP: process.env.RISCO_IP || '127.0.0.1',
   Panel_Port: 1000,
   Panel_Password: 5678,
   Panel_Id: '0001',
