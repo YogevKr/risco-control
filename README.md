@@ -59,7 +59,16 @@ docker compose up -d
 ## System Doctor
 
 ```bash
-node doctor.js
+npm run doctor
 ```
 
 Runs a full diagnostic scan: battery, signal, dead zones, default passwords, missing notifications, and more.
+
+## Repository Layout
+
+- `src/` - local control server, diagnostics, runtime helpers, and browser UI
+- `test/` - Node test suite
+- `data/` - generated command catalog and command inputs
+- `scripts/` - build and install helpers
+- `tools/probes/` - exploratory panel/protocol tools
+- `dist/` - standalone compiled binary

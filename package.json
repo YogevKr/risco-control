@@ -2,11 +2,14 @@
   "name": "risco-control",
   "version": "1.0.0",
   "description": "Full Risco alarm panel control",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node server.js",
-    "doctor": "node doctor.js",
-    "test": "node --test panel-runtime.test.js gsm-health.test.js command-catalog.test.js audit.test.js"
+    "start": "node src/server.js",
+    "doctor": "node src/doctor.js",
+    "test": "node --test test/*.test.js",
+    "build:catalog": "node scripts/build-command-catalog.js",
+    "build:mac": "bun build --compile --target=bun-darwin-arm64 --outfile dist/risco-control src/server.js",
+    "bundle:app": "npm run build:mac && cp dist/risco-control 'Risco Control.app/Contents/MacOS/risco-control' && cp src/ui.html 'Risco Control.app/Contents/MacOS/ui.html' && cp data/command-catalog.json 'Risco Control.app/Contents/MacOS/command-catalog.json'"
   },
   "keywords": ["risco", "alarm", "lightsys", "prosys", "security", "home-automation"],
   "author": "",
