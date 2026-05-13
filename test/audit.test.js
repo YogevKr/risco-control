@@ -71,12 +71,11 @@ function sampleSnapshot(overrides = {}) {
 test('assessAuditSnapshot returns grouped open issues without exposing secrets', () => {
   const report = assessAuditSnapshot(sampleSnapshot(), { now: new Date('2026-05-10T20:00:00.000Z') });
 
-  assert.equal(report.summary.openCount, 8);
+  assert.equal(report.summary.openCount, 7);
   assert.equal(report.summary.watchCount, 3);
   assert.deepEqual(codes(report).filter((code) => code !== 'remote_access_enabled' && code !== 'cloud_remote_control_enabled'), [
     'sub_installer_pin_weak',
     'gsm_unusable',
-    'system_bell_trouble',
     'weak_user_pins',
     'cloud_encryption_disabled',
     'gateway_outside_subnet',
@@ -85,6 +84,44 @@ test('assessAuditSnapshot returns grouped open issues without exposing secrets',
     'watch_wireless_signal',
   ]);
   assert.equal(JSON.stringify(report).includes('2222'), false);
+});
+
+test('bell switch flag is not treated as siren trouble', () => {
+  const report = assessAuditSnapshot(sampleSnapshot({
+    system: { sstt: '--------------F--------', batteryVoltage: 13.8 },
+    gsm: { health: { usable: true } },
+    access: {
+      remoteAccess: { enabled: false, remoteId: '0001', codeInfo: { present: true, length: 6, weak: false } },
+      installerPinInfo: { present: true, length: 4, weak: false },
+      subInstallerPinInfo: { present: true, length: 4, weak: false },
+    },
+    users: [],
+    zones: [],
+    cloud: { enabled: false },
+    network: { ip: '192.168.070.101', subnet: '255.255.255.000', gateway: '192.168.070.001' },
+  }));
+
+  assert.equal(codes(report).includes('system_bell_trouble'), false);
+  assert.equal(codes(report).includes('system_bell_tamper'), false);
+});
+
+test('bell trouble and tamper flags are reported', () => {
+  const report = assessAuditSnapshot(sampleSnapshot({
+    system: { sstt: 'EY', batteryVoltage: 13.8 },
+    gsm: { health: { usable: true } },
+    access: {
+      remoteAccess: { enabled: false, remoteId: '0001', codeInfo: { present: true, length: 6, weak: false } },
+      installerPinInfo: { present: true, length: 4, weak: false },
+      subInstallerPinInfo: { present: true, length: 4, weak: false },
+    },
+    users: [],
+    zones: [],
+    cloud: { enabled: false },
+    network: { ip: '192.168.070.101', subnet: '255.255.255.000', gateway: '192.168.070.001' },
+  }));
+
+  assert.equal(codes(report).includes('system_bell_trouble'), true);
+  assert.equal(codes(report).includes('system_bell_tamper'), true);
 });
 
 test('weak remote access code is critical', () => {

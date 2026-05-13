@@ -120,21 +120,24 @@ function assessSystem(snapshot, findings) {
   }
 
   const flags = [
-    ['B', 0, 'issue', 'system_low_battery', 'System low battery flag active', 'Check the panel backup battery.'],
-    ['A', 1, 'issue', 'system_ac_fail', 'AC power failure flag active', 'Check transformer, outlet, and panel power wiring.'],
-    ['P', 2, 'warning', 'phone_line_trouble', 'Phone line trouble flag active', 'Disable unused PSTN reporting or fix the phone line path.'],
-    ['C', 3, 'warning', 'clock_trouble', 'Clock trouble flag active', 'Set panel time and verify NTP/time settings.'],
-    ['D', 4, 'issue', 'default_enabled', 'Default mode flag active', 'Review programming state and changed factory defaults.'],
-    ['1', 5, 'warning', 'monitoring_station_1_trouble', 'Monitoring station 1 trouble', 'Verify monitoring station configuration and reporting path.'],
-    ['2', 6, 'warning', 'monitoring_station_2_trouble', 'Monitoring station 2 trouble', 'Verify monitoring station configuration and reporting path.'],
-    ['T', 8, 'issue', 'box_tamper', 'Box tamper active', 'Check enclosure cover and tamper switch.'],
-    ['J', 9, 'issue', 'rf_jamming', 'RF jamming trouble active', 'Check RF noise and nearby wireless interference.'],
-    ['I', 10, 'warning', 'programming_mode', 'Panel is in programming mode', 'Exit programming mode after changes are complete.'],
-    ['F', 14, 'issue', 'system_bell_trouble', 'Bell/siren trouble active', 'Check siren wiring, tamper, fuse, and siren supervision settings.'],
+    ['B', 'issue', 'system_low_battery', 'System low battery flag active', 'Check the panel backup battery.'],
+    ['A', 'issue', 'system_ac_fail', 'AC power failure flag active', 'Check transformer, outlet, and panel power wiring.'],
+    ['P', 'warning', 'phone_line_trouble', 'Phone line trouble flag active', 'Disable unused PSTN reporting or fix the phone line path.'],
+    ['C', 'warning', 'clock_trouble', 'Clock trouble flag active', 'Set panel time and verify NTP/time settings.'],
+    ['D', 'issue', 'default_enabled', 'Default mode flag active', 'Review programming state and changed factory defaults.'],
+    ['1', 'warning', 'monitoring_station_1_trouble', 'Monitoring station 1 trouble', 'Verify monitoring station configuration and reporting path.'],
+    ['2', 'warning', 'monitoring_station_2_trouble', 'Monitoring station 2 trouble', 'Verify monitoring station configuration and reporting path.'],
+    ['X', 'issue', 'box_tamper', 'Box tamper active', 'Check enclosure cover and tamper switch.'],
+    ['J', 'issue', 'rf_jamming', 'RF jamming trouble active', 'Check RF noise and nearby wireless interference.'],
+    ['I', 'warning', 'programming_mode', 'Panel is in programming mode', 'Exit programming mode after changes are complete.'],
+    ['U', 'issue', 'aux_power_trouble', 'Auxiliary power trouble active', 'Check auxiliary power output and connected devices.'],
+    ['R', 'issue', 'rs485_bus_trouble', 'RS-485 bus trouble active', 'Check keypad/module bus wiring and termination.'],
+    ['E', 'issue', 'system_bell_trouble', 'Bell/siren trouble active', 'Check siren wiring, fuse, and siren supervision settings.'],
+    ['Y', 'issue', 'system_bell_tamper', 'Bell/siren tamper active', 'Check siren cover tamper and tamper wiring.'],
   ];
 
-  for (const [flag, idx, severity, code, title, action] of flags) {
-    if (sstt[idx] === flag) {
+  for (const [flag, severity, code, title, action] of flags) {
+    if (sstt.includes(flag)) {
       addFinding(findings, {
         severity,
         category: 'System',
