@@ -406,7 +406,16 @@ function assessCloud(snapshot, findings) {
     });
   }
 
-  if (!cloud.encrypted) {
+  if (cloud.encryptionSupported === false) {
+    addFinding(findings, {
+      severity: 'info',
+      category: 'Cloud',
+      code: 'cloud_encryption_unsupported',
+      title: 'RiscoCloud encryption flag is unsupported',
+      detail: 'The panel returns unsupported for ELASENCR, so this firmware does not expose the cloud encryption toggle.',
+      action: 'Keep cloud access network-restricted and verify the mobile app/cloud path still behaves as expected.',
+    });
+  } else if (!cloud.encrypted) {
     addFinding(findings, {
       severity: 'warning',
       category: 'Cloud',

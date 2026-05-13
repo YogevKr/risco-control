@@ -108,6 +108,11 @@ function hasSecretValue(value) {
   return !!s && !['N/A', 'N05', 'N19'].includes(s);
 }
 
+function hasPanelValue(value) {
+  const s = String(value ?? '').trim();
+  return !!s && !['N/A', 'N05', 'N19'].includes(s);
+}
+
 function secretInfo(value) {
   const s = String(value ?? '').trim();
   return {
@@ -315,6 +320,7 @@ async function readAuditSnapshot() {
     partitions: await readAuditPartitions(),
     cloud: {
       enabled: !!parseNumber(elasen),
+      encryptionSupported: hasPanelValue(elasencr),
       encrypted: !!parseNumber(elasencr),
       armEnabled: !!parseNumber(elasarm),
       disarmEnabled: !!parseNumber(elasdarm),
@@ -701,7 +707,7 @@ app.get('/api/cloud', async (req, res) => {
     res.json({
       enabled: !!parseInt(enabled), server: ip, port: parseInt(port), password: redacted(pass), passwordInfo: secretInfo(pass),
       armEnabled: !!parseInt(arm), disarmEnabled: !!parseInt(darm),
-      delay: parseInt(delay), backup: parseInt(backup), encrypted: !!parseInt(encrypt),
+      delay: parseInt(delay), backup: parseInt(backup), encryptionSupported: hasPanelValue(encrypt), encrypted: !!parseInt(encrypt),
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

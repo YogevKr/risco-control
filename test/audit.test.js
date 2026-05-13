@@ -124,6 +124,22 @@ test('bell trouble and tamper flags are reported', () => {
   assert.equal(codes(report).includes('system_bell_tamper'), true);
 });
 
+test('unsupported cloud encryption flag is not reported as disabled', () => {
+  const report = assessAuditSnapshot(sampleSnapshot({
+    cloud: {
+      enabled: true,
+      encryptionSupported: false,
+      encrypted: false,
+      armEnabled: true,
+      disarmEnabled: true,
+      passwordInfo: { present: true, length: 6, weak: false },
+    },
+  }));
+
+  assert.equal(codes(report).includes('cloud_encryption_disabled'), false);
+  assert.equal(codes(report).includes('cloud_encryption_unsupported'), true);
+});
+
 test('weak remote access code is critical', () => {
   const report = assessAuditSnapshot(sampleSnapshot({
     access: {
