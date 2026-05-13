@@ -122,8 +122,20 @@ function secretInfo(value) {
   };
 }
 
-function redacted(value) {
-  const info = secretInfo(value);
+function userPinInfo(value) {
+  const s = String(value ?? '').trim();
+  if (s === '0000') {
+    return {
+      present: false,
+      length: s.length,
+      weak: false,
+      placeholder: true,
+    };
+  }
+  return secretInfo(s);
+}
+
+function redacted(value, info = secretInfo(value)) {
   return info.present ? `{present,len=${info.length}}` : '';
 }
 
@@ -203,7 +215,7 @@ async function readAuditUsers() {
       id: i,
       label: cleanLabel,
       level: parseNumber(level),
-      pinInfo: secretInfo(pin),
+      pinInfo: userPinInfo(pin),
     });
   }
   return users;
@@ -581,12 +593,13 @@ app.get('/api/users', async (req, res) => {
         readCmd(`ULBL*${i}`), readCmd(`ULVL*${i}`), readCmd(`UPIN*${i}`), readCmd(`UPROX*${i}`),
       ]);
       if (!label || label.trim() === '' || label.includes('N05')) continue;
+      const pinInfo = userPinInfo(pin);
       users.push({
         id: i,
         label: label.trim(),
         level: parseInt(level),
-        pin: redacted(pin),
-        pinInfo: secretInfo(pin),
+        pin: redacted(pin, pinInfo),
+        pinInfo,
         prox: /^0+$/.test(String(prox || '').trim()) ? '' : redacted(prox),
         proxInfo: { ...secretInfo(prox), present: hasSecretValue(prox) && !/^0+$/.test(String(prox || '').trim()) },
       });

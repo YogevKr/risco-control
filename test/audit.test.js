@@ -105,6 +105,26 @@ test('bell switch flag is not treated as siren trouble', () => {
   assert.equal(codes(report).includes('system_bell_tamper'), false);
 });
 
+test('zero user PIN placeholders are not reported as weak user PINs', () => {
+  const report = assessAuditSnapshot(sampleSnapshot({
+    gsm: { health: { usable: true } },
+    access: {
+      remoteAccess: { enabled: false, remoteId: '0001', codeInfo: { present: true, length: 6, weak: false } },
+      installerPinInfo: { present: true, length: 4, weak: false },
+      subInstallerPinInfo: { present: true, length: 4, weak: false },
+    },
+    users: [
+      { id: 6, label: '06 User', pinInfo: { present: false, length: 4, weak: false, placeholder: true } },
+      { id: 7, label: '7 User', pinInfo: { present: false, length: 4, weak: false, placeholder: true } },
+    ],
+    zones: [],
+    cloud: { enabled: false },
+    network: { ip: '192.168.070.101', subnet: '255.255.255.000', gateway: '192.168.070.001' },
+  }));
+
+  assert.equal(codes(report).includes('weak_user_pins'), false);
+});
+
 test('bell trouble and tamper flags are reported', () => {
   const report = assessAuditSnapshot(sampleSnapshot({
     system: { sstt: 'EY', batteryVoltage: 13.8 },
