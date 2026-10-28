@@ -266,15 +266,40 @@ function candidateCatalogPaths(root = process.cwd()) {
   ];
 }
 
+// The CS XML ships some commands without a description. Fill the ones that
+// matter for writes so the catalog UI explains their limits.
+const DESCRIPTION_OVERRIDES = Object.freeze({
+  ZLBL: 'Zone label (up to 16 characters; longer values are cut by the panel)',
+  ULBL: 'User label (up to 16 characters)',
+  PLBL: 'Partition label (up to 16 characters)',
+  OLBL: 'Output label (up to 16 characters)',
+  FMLBL: 'Follow-me label (up to 16 characters)',
+  SYSLBL: 'System label (up to 16 characters)',
+  KPLABEL: 'Keypad label (up to 16 characters)',
+  FBLABEL: 'Keyfob label (up to 16 characters)',
+  SCLABEL: 'Schedule label (up to 16 characters)',
+  VACLABEL: 'Vacation label (up to 16 characters)',
+  RPLBL: 'Repeater label (up to 16 characters)',
+});
+
+function applyDescriptionOverrides(catalog) {
+  for (const entry of catalog.commands || []) {
+    if (!entry.description && DESCRIPTION_OVERRIDES[entry.base]) {
+      entry.description = DESCRIPTION_OVERRIDES[entry.base];
+    }
+  }
+  return catalog;
+}
+
 function loadCommandCatalog(root = process.cwd()) {
   for (const candidate of candidateCatalogPaths(root)) {
     if (fs.existsSync(candidate)) {
       try {
-        return JSON.parse(fs.readFileSync(candidate, 'utf8'));
+        return applyDescriptionOverrides(JSON.parse(fs.readFileSync(candidate, 'utf8')));
       } catch (error) {}
     }
   }
-  return buildCommandCatalog(root);
+  return applyDescriptionOverrides(buildCommandCatalog(root));
 }
 
 function summarizeCommands(commands) {
@@ -334,6 +359,9 @@ function maskPanelResponse(command, response) {
 }
 
 module.exports = {
+  ALL_COMMANDS,
+  XML_CATALOG,
+  applyDescriptionOverrides,
   buildCommandCatalog,
   buildCommandMenu,
   isActionCommand,

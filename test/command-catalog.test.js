@@ -1,11 +1,31 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { buildCommandCatalog, buildCommandMenu, isActionCommand, isSensitiveCommand, maskPanelResponse } = require('../src/command-catalog');
+const {
+  XML_CATALOG, applyDescriptionOverrides, buildCommandCatalog, buildCommandMenu,
+  isActionCommand, isSensitiveCommand, loadCommandCatalog, maskPanelResponse,
+} = require('../src/command-catalog');
 
 const repoRoot = path.join(__dirname, '..');
+// The CS XML dump is extracted from the vendor installer and is not tracked.
+const hasCsXml = fs.existsSync(path.join(repoRoot, XML_CATALOG));
+const needsCsXml = { skip: hasCsXml ? false : `needs ${XML_CATALOG} (extract the CS installer first)` };
 
-test('builds full command catalog from CS XML and command list', () => {
+test('label commands get a description with the 16-character limit', () => {
+  const catalog = applyDescriptionOverrides({ commands: [
+    { command: 'ZLBL1', base: 'ZLBL', description: '' },
+    { command: 'ZTYPE1', base: 'ZTYPE', description: 'Zone type' },
+  ] });
+  assert.match(catalog.commands[0].description, /16 characters/);
+  assert.equal(catalog.commands[1].description, 'Zone type');
+  const loaded = loadCommandCatalog(repoRoot);
+  const zlbl = loaded.commands.find((entry) => entry.command === 'ZLBL');
+  assert.ok(zlbl, 'ZLBL is in the generated catalog');
+  assert.match(zlbl.description, /16 characters/);
+});
+
+test('builds full command catalog from CS XML and command list', needsCsXml, () => {
   const catalog = buildCommandCatalog(repoRoot);
   const names = new Set(catalog.commands.map((entry) => entry.command));
 
@@ -23,7 +43,7 @@ test('classifies action and sensitive commands', () => {
   assert.equal(isSensitiveCommand('ZTYPE1'), false);
 });
 
-test('builds menu tree by category and command family', () => {
+test('builds menu tree by category and command family', needsCsXml, () => {
   const catalog = buildCommandCatalog(repoRoot);
   const menu = buildCommandMenu(catalog);
   const zones = menu.categories.find((category) => category.name === 'Zones');

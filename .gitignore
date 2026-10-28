@@ -15,3 +15,4 @@ risco-deep-audit-*.md
 .udaccid-recovery-state.json
 Risco Control.app/Contents/MacOS/risco-config.json
 Risco-Control-macOS-arm64.zip
+dist/
