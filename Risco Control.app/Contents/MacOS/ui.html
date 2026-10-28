@@ -111,6 +111,7 @@
     <div class="dim" style="margin-bottom:12px">Run <code style="background:#1e293b;padding:2px 6px;border-radius:3px">npm start</code> on your local machine, then enter the address below</div>
     <div class="row" style="justify-content:center">
       <input type="text" id="server-url" placeholder="http://192.168.x.x:3580" style="width:260px;padding:8px;font-size:14px">
+      <input type="password" id="api-token" placeholder="API token (only if the server sets one)" autocomplete="off" style="width:260px;padding:8px;font-size:14px">
       <button class="bg" onclick="connectServer()" style="padding:8px 20px;font-size:14px">Connect</button>
     </div>
     <div id="connect-err" style="color:#f87171;margin-top:8px;font-size:12px"></div>
@@ -157,8 +158,11 @@ function getBase() {
 async function connectServer() {
   let url = $('#server-url').value.trim().replace(/\/+$/, '');
   if (!url.startsWith('http')) url = 'http://' + url;
+  TOKEN = $('#api-token').value.trim();
+  if (TOKEN) localStorage.setItem('risco-token', TOKEN); else localStorage.removeItem('risco-token');
   try {
-    const r = await fetch(url + '/api/system');
+    const r = await fetch(url + '/api/system', { headers: authHeaders() });
+    if (r.status === 401) { $('#connect-err').textContent = 'The server requires an API token.'; return; }
     const d = await r.json();
     if (d.panel) {
       localStorage.setItem('risco-server', url);
@@ -173,9 +177,24 @@ async function connectServer() {
   }
 }
 
-const api = async p => (await fetch(BASE+'/api/'+p)).json();
-const post = async (p,b) => (await fetch(BASE+'/api/'+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})})).json();
-const put = async (p,b) => (await fetch(BASE+'/api/'+p,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();
+// API token: required when the server binds to a non-loopback address (RISCO_API_TOKEN).
+let TOKEN = localStorage.getItem('risco-token') || '';
+const authHeaders = extra => Object.assign({}, extra || {}, TOKEN ? { 'Authorization': 'Bearer ' + TOKEN } : {});
+async function call(method, p, body) {
+  const opts = { method, headers: authHeaders(body !== undefined ? { 'Content-Type': 'application/json' } : {}) };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(BASE + '/api/' + p, opts);
+  if (r.status === 401) {
+    $('#connect').style.display = 'block';
+    $('#server-url').value = BASE || 'http://localhost:3580';
+    $('#connect-err').textContent = 'The server requires an API token.';
+    throw new Error('API token required');
+  }
+  return r.json();
+}
+const api = p => call('GET', p);
+const post = (p,b) => call('POST', p, b || {});
+const put = (p,b) => call('PUT', p, b);
 
 function toast(msg, err){const t=$('#toast');t.textContent=msg;t.className='toast'+(err?' err':'');t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
 function tag(t,c){return `<span class="t t-${c}">${t}</span>`}
