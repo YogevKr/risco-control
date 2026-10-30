@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { assessGsmHealth } = require('./gsm-health');
 const { buildCommandMenu, isSensitiveCommand, maskPanelResponse } = require('./command-catalog');
 const { assessAuditSnapshot } = require('./audit');
+const { createTrigger } = require('./trigger');
 const { DEFAULTS, loadConfig, saveConfig, supportedPanelTypes } = require('./panel-runtime');
 
 const LOOPBACK_NAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
@@ -51,6 +52,11 @@ function createApp({ commands, controller, catalog, runtime, rootDir = process.c
   const commandByName = new Map(commandCatalog.commands.map((entry) => [entry.command, entry]));
   const app = express();
   app.use(express.json());
+
+  // Delayed trigger engine: HTTP routes below and the MQTT bridge (server.js)
+  // share it. Exposed on app.locals so the bridge can publish its state.
+  const trigger = createTrigger({ commands, runtime, controller, logger: runtime.triggerLogger || console });
+  app.locals.trigger = trigger;
 
   // -- Caches: zone inventory, dropped on any write or reconnect --
   const zonesCache = { at: 0, data: null };
@@ -107,6 +113,25 @@ function createApp({ commands, controller, catalog, runtime, rootDir = process.c
       }
     }
     next();
+  });
+
+  // -- Delayed trigger (Home Assistant -> panel) --
+  // POST /api/trigger         start (or replace) a delayed panel action
+  // POST /api/trigger/cancel  cancel the pending action
+  // GET  /api/trigger         pending plan and last result
+  app.get('/api/trigger', (req, res) => {
+    res.json(trigger.status());
+  });
+
+  app.post('/api/trigger', (req, res) => {
+    try {
+      res.status(202).json(trigger.schedule(req.body || {}));
+    } catch (e) { fail(res, e); }
+  });
+
+  app.post('/api/trigger/cancel', (req, res) => {
+    const reason = String((req.body && req.body.reason) || 'cancelled').slice(0, 64);
+    res.json(trigger.cancel(reason));
   });
 
   // -- Health --

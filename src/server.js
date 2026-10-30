@@ -6,6 +6,7 @@ const { createCommandLayer } = require('./panel-commands');
 const { createPanelController } = require('./panel-controller');
 const { getPanelRuntime, isLoopbackHost } = require('./panel-runtime');
 const { loadCommandCatalog } = require('./command-catalog');
+const { startMqttBridge } = require('./mqtt');
 
 const ROOT_DIR = process.cwd();
 
@@ -56,11 +57,14 @@ function main() {
     process.exit(1);
   });
 
+  const mqtt = startMqttBridge({ runtime, trigger: app.locals.trigger });
+
   controller.connect().catch((err) => console.error(`Panel connect failed: ${err.message}`));
 
   const shutdown = async (signal) => {
     console.log(`\n${signal} received; closing.`);
     server.close();
+    if (mqtt) mqtt.stop();
     await controller.disconnect();
     process.exit(0);
   };

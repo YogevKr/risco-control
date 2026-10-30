@@ -40,11 +40,17 @@ handshake completed. `GET /api/health` returns the same facts as JSON.
 | `RISCO_DISCOVER_CODE` | `0` | `1` lets the library brute-force the access code (0–999999 tries against a live panel). Off by default |
 | `RISCO_ZONES_CACHE_MS` | `30000` | How long `/api/zones` serves cached data. Any write or `?fresh=1` drops the cache |
 | `RISCO_COMMAND_RETRIES` | `2` | How many times a command with no reply is sent again (each attempt waits the library's 5 s timeout) |
+| `RISCO_TRIGGER_DELAY` | `30` | Default seconds between `/api/trigger` and the panel action |
+| `RISCO_MQTT_URL` | *(none)* | MQTT broker URL, for example `mqtt://homeassistant:1883`. Empty disables the bridge |
+| `RISCO_MQTT_TOPIC` | `risco/control` | MQTT base topic. Commands arrive on `<topic>/set` |
+| `RISCO_MQTT_USERNAME` | *(none)* | MQTT user name |
+| `RISCO_MQTT_PASSWORD` | *(none)* | MQTT password |
 | `RISCO_CONFIG_PATH` | *(auto)* | Explicit path of `risco-config.json` |
 
 The same keys can live in `risco-config.json` (`panelIp`, `panelPort`, `panelPassword`,
 `panelId`, `panelType`, `host`, `port`, `apiToken`, `allowedHosts`, `allowedOrigins`,
-`logLevel`, `discoverCode`, `zonesCacheMs`). Environment variables win over the file.
+`logLevel`, `discoverCode`, `zonesCacheMs`, `triggerDelay`, `mqttUrl`, `mqttTopic`,
+`mqttUsername`, `mqttPassword`). Environment variables win over the file.
 The file is written with owner-only permissions (`0600`) because it holds the access
 code and installer PINs. From source it lives next to `package.json`; in the `.app`
 bundle and the compiled binary it lives next to the executable.
@@ -111,6 +117,104 @@ docker compose up -d
 - Dead sensor detection with last-seen timestamps
 - `GET /api/health` with connection state, last probe, last error and command stats
 
+## Home Assistant trigger (delayed alarm)
+
+The panel has no direct "sound the bell" command. It raises an alarm only when a
+zone trips on an armed partition. The trigger endpoint therefore runs a panel
+action after a delay; the panel's own exit and entry delays then apply.
+
+Actions:
+
+| Action | Panel command | Use |
+|--------|---------------|-----|
+| `arm` | `ARM=<partition>` | Real alarm. An open delay zone alarms after the entry delay |
+| `stay` | `STAY=<partition>` | Arm and stay inside |
+| `disarm` | `DISARM=<partition>` | Stop the alarm, cancel the plan |
+| `output` | `ACTUO<output>` | Pulse a PGM relay (needs a wired bell trigger) |
+| `siren` | `SNTEST` | Short wireless-siren test only |
+| `none` | none | Only record the event |
+
+### HTTP
+
+```bash
+# Arm partition 1 after 30 s. Cancel it if someone disarms first.
+curl -X POST http://risco.local:3580/api/trigger \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"arm","partition":1,"delay":30,"name":"front door"}'
+
+curl -X POST http://risco.local:3580/api/trigger/cancel -d '{"reason":"disarmed"}'
+curl http://risco.local:3580/api/trigger          # pending plan and last result
+```
+
+Field reference: `action`, `partition` (1–4), `output` (1–32), `delay` seconds
+(default `RISCO_TRIGGER_DELAY`), `restoreAfter` seconds to undo an `arm`/`stay`,
+and `name` for the status. A new call replaces a pending plan.
+
+Home Assistant `configuration.yaml`:
+
+```yaml
+rest_command:
+  risco_trigger:
+    url: http://risco.local:3580/api/trigger
+    method: POST
+    headers:
+      Authorization: !secret risco_api_token
+    payload: '{"action":"arm","partition":1,"delay":30,"name":"{{ name }}"}'
+    content_type: application/json
+  risco_cancel:
+    url: http://risco.local:3580/api/trigger/cancel
+    method: POST
+    headers:
+      Authorization: !secret risco_api_token
+    payload: '{"reason":"cancel"}'
+    content_type: application/json
+```
+
+Automation: arm 30 s after the door opens, and cancel if the door closes again.
+
+```yaml
+automation:
+  - alias: Door open delayed alarm
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.front_door
+        to: "on"
+    actions:
+      - action: rest_command.risco_trigger
+        data:
+          name: front door
+  - alias: Door closed cancels the alarm plan
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.front_door
+        to: "off"
+    actions:
+      - action: rest_command.risco_cancel
+```
+
+### MQTT
+
+Set `RISCO_MQTT_URL`. Publish to `<topic>/set`:
+
+```text
+disarm                     -> immediate DISARM=1
+trigger                    -> arm after RISCO_TRIGGER_DELAY
+trigger 45                 -> arm after 45 s
+{"action":"arm","delay":30,"partition":1,"name":"front door"}
+cancel
+```
+
+The bridge answers on `<topic>/result` and mirrors the plan on `<topic>/state`
+(retained). Add `<topic>/set` to a Home Assistant `mqtt.publish` action:
+
+```yaml
+actions:
+  - action: mqtt.publish
+    data:
+      topic: risco/control/set
+      payload: '{"action":"arm","delay":30,"name":"front door"}'
+```
+
 ## System Doctor
 
 ```bash
@@ -134,6 +238,8 @@ command layer against an in-memory fake panel; no hardware is needed.
 - `src/app.js` - HTTP API, security middleware and the web UI route
 - `src/panel-controller.js` - panel connection lifecycle, reachability probe, health state
 - `src/panel-commands.js` - serialised command queue, retry, programming mode, label validation
+- `src/trigger.js` - delayed panel trigger used by the HTTP routes and the MQTT bridge
+- `src/mqtt.js` - optional MQTT bridge (`RISCO_MQTT_URL`)
 - `src/panel-runtime.js` - config file and environment handling
 - `src/ui.html` - browser UI
 - `test/` - Node test suite

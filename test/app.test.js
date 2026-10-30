@@ -307,3 +307,34 @@ test('reconnect drops the zone cache and asks the controller to reconnect', asyn
     await ctx.close();
   }
 });
+
+test('/api/trigger schedules, reports and cancels a delayed action', async () => {
+  const panel = fakePanel();
+  const ctx = await startApp({ panel });
+  try {
+    const invalid = await ctx.request('POST', '/api/trigger', { body: { action: 'beam' } });
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.json.code, 'bad_trigger');
+
+    const started = await ctx.request('POST', '/api/trigger', { body: { action: 'arm', partition: 1, delay: 0.05, name: 'door' } });
+    assert.equal(started.status, 202);
+    assert.equal(started.json.pending.action, 'arm');
+
+    const pending = await ctx.request('GET', '/api/trigger');
+    assert.equal(pending.json.pending.name, 'door');
+    assert.deepEqual(panel.sent, [], 'nothing is sent before the delay');
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(panel.sent, ['ARM=1']);
+    assert.equal((await ctx.request('GET', '/api/trigger')).json.last.ok, true);
+
+    await ctx.request('POST', '/api/trigger', { body: { action: 'output', output: 2, delay: 0.2 } });
+    const cancelled = await ctx.request('POST', '/api/trigger/cancel', { body: { reason: 'door closed' } });
+    assert.equal(cancelled.json.pending, null);
+    assert.equal(cancelled.json.last.reason, 'door closed');
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    assert.deepEqual(panel.sent, ['ARM=1'], 'the cancelled output never fires');
+  } finally {
+    await ctx.close();
+  }
+});

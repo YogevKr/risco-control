@@ -17,6 +17,7 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1",
+    "mqtt": "^5.16.1",
     "risco-lan-bridge": "^0.10.5"
   }
 }

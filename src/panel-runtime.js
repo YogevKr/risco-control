@@ -18,6 +18,14 @@ const DEFAULTS = Object.freeze({
   // Lost replies: how many times a command is sent again (bounded by the
   // library's 5-second timeout per attempt).
   commandRetries: 2,
+  // Delayed trigger: default seconds between a Home Assistant event and the
+  // panel action. 0 fires at once.
+  triggerDelay: 30,
+  // Optional MQTT bridge. Empty RISCO_MQTT_URL disables it.
+  mqttUrl: '',
+  mqttTopic: 'risco/control',
+  mqttUsername: '',
+  mqttPassword: '',
 });
 
 const CONFIG_FILE = 'risco-config.json';
@@ -172,6 +180,11 @@ function getPanelRuntime() {
     allowedOrigins: parseList(process.env.RISCO_ALLOWED_ORIGINS || config.allowedOrigins),
     zonesCacheMs: parseEnvInt('RISCO_ZONES_CACHE_MS', config.zonesCacheMs ?? DEFAULTS.zonesCacheMs),
     commandRetries: parseEnvInt('RISCO_COMMAND_RETRIES', config.commandRetries ?? DEFAULTS.commandRetries),
+    triggerDelay: parseEnvInt('RISCO_TRIGGER_DELAY', config.triggerDelay ?? DEFAULTS.triggerDelay),
+    mqttUrl: String(process.env.RISCO_MQTT_URL || config.mqttUrl || DEFAULTS.mqttUrl).trim(),
+    mqttTopic: String(process.env.RISCO_MQTT_TOPIC || config.mqttTopic || DEFAULTS.mqttTopic).trim(),
+    mqttUsername: String(process.env.RISCO_MQTT_USERNAME || config.mqttUsername || DEFAULTS.mqttUsername),
+    mqttPassword: String(process.env.RISCO_MQTT_PASSWORD || config.mqttPassword || DEFAULTS.mqttPassword),
     configPath: resolveConfigPath(),
     supportedPanelTypes,
   };
